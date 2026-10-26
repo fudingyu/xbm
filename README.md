@@ -38,15 +38,20 @@ python -m xbm sync                # 增量:遇到已知推文即停;首次可 --
 # 3. 批量嵌入 + 自动分类
 python -m xbm embed --backend gpu # CPU ~9条/s,GPU(WebGPU)~15条/s;也可在网页点按钮
 
-# 4. 起 Web UI(仓库已含构建好的 web/dist;改动 web/ 源码后才需重新构建)
+# 4. 起 Web UI(需先有 web/dist:下载 Release 预构建包解压,或从源码构建)
 python -m xbm serve               # http://127.0.0.1:8788
 ```
 
 页面五个视图:混合检索、三维交集分类浏览、UMAP 地图、时间脉络、线索账本(中断线索回溯)。
 
-前端构建(仅改动 web/ 源码后需要):
+前端分发(两种方式二选一):
 
 ```bash
+# 方式一:下载 Release 里的预构建包(含 wasm 运行时),解压到 web/dist
+#   https://github.com/<owner>/xbm/releases  →  xbm-web-dist-v0.1.0.zip
+unzip xbm-web-dist-v0.1.0.zip -d web/dist
+
+# 方式二:从源码构建(改动 web/ 源码后需要)
 cd web && npm install && npm run build   # 产物 web/dist,含 wasm 运行时
 ```
 
@@ -158,12 +163,11 @@ sync → 补嵌入(CPU/GPU 批量)→ 类目:对持久化类目向量余弦(N �
 - 书签里的**图片内容**暂未参与语义检索(文本盲区,后续可加 OCR/多模态)。
 - 外链文章正文未抓取(很多书签本质是"稍后读",后续可加)。
 - WebGPU 需较新的 Chrome/Edge;页面会给出明确错误提示。
-- 分类浏览(聚类 + 自动簇命名)是下一阶段(M3),当前先交付检索(M1/M2)。
 
 ## 测试
 
 ```bash
-python -m unittest tests.test_all -v   # 12 项:存档三格式/去重/FTS/混合检索/双后端解析
+python -m unittest tests.test_all -v   # 26 项:存档三格式/去重/FTS/混合检索/双后端解析/聚类/线索/时间脉络
 ```
 
 ## 项目结构
