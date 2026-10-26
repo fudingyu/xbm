@@ -61,32 +61,32 @@ async function boot() {
   try {
     cfg = await (await fetch('/api/config')).json();
   } catch (e) {
-    setStatus('无法连接后端 API,请从 python -m xbm serve 打开本页');
+    setStatus(t('boot.noBackend'));
     return;
   }
   if (!cfg.model_ready) {
-    setStatus(`模型文件不可用(${cfg.model_name}),检查 XBM_MODEL_PATH`);
+    setStatus(`${t('boot.modelMissing')} (${cfg.model_name}) — ${t('boot.checkEnv')}`);
     return;
   }
   try {
-    setStatus('加载嵌入运行时(wasm)…');
+    setStatus(t('boot.wasm'));
     await getOrLoadGlobalLiteRtLm('./wasm');
-    setStatus('下载/加载模型中(WebGPU)…');
+    setStatus(t('boot.modelDL'));
     const resp = await fetch('/model');
     const total = +resp.headers.get('Content-Length') || 0;
     const stream = trackProgress(resp.body, total, (n, t) =>
-      setStatus(`加载模型 ${t ? Math.round((n / t) * 100) : Math.round(n / 1048576) + 'MB'}%`));
+      setStatus(`${t('boot.modelPct')} ${t ? Math.round((n / t) * 100) : Math.round(n / 1048576) + 'MB'}%`));
     const t0 = performance.now();
     // 纯文本 270m 模型不能带 vision/audio backend(会去找视觉编码器缓冲区)
     try {
       engine = await EmbeddingEngine.create({ model: stream, backend: Backend.GPU });
     } catch (e) {
-      setStatus(`模型加载失败:${e}(需要支持 WebGPU 的 Chrome/Edge)`);
+      setStatus(`${t('boot.fail')}: ${e} (${t('boot.needWebGPU')})`);
       return;
     }
-    setStatus(`模型就绪(加载耗时 ${((performance.now() - t0) / 1000).toFixed(1)}s)`);
+    setStatus(`${t('boot.ready')} (${t('boot.loadSec')} ${((performance.now() - t0) / 1000).toFixed(1)}s)`);
   } catch (e) {
-    setStatus(`模型加载失败:${e}(需要支持 WebGPU 的 Chrome/Edge)`);
+    setStatus(`${t('boot.fail')}: ${e} (${t('boot.needWebGPU')})`);
     return;
   }
   await refreshStatus();
@@ -96,21 +96,21 @@ async function boot() {
 async function refreshStatus() {
   try {
     const s = await (await fetch('/api/status')).json();
-    $('embed-text').textContent = `嵌入进度 ${s.embedded}/${s.total}` + (s.total && s.embedded < s.total ? '(进行中…)' : '');
+    $('embed-text').textContent = `${t('embed.progress')} ${s.embedded}/${s.total}` + (s.total && s.embedded < s.total ? t('embed.running') : '');
     $('embed-fill').style.width = s.total ? `${Math.round((s.embedded / s.total) * 100)}%` : '0%';
-    if (!s.sync_configured) $('sync-note').textContent = '(尚未配置同步,先运行 python -m xbm sync --init)';
+    if (!s.sync_configured) $('sync-note').textContent = t('note.embedPending');
     if (s.twscrape) {
       const req = s.twscrape.requests;
-      let line = `书签总量 ${s.total} · 同步已发 ${req ?? '?'} 次请求`;
+      let line = `${t('backfill.total')} ${s.total} · ${t('backfill.reqs')} ${req ?? '?'} ${t('backfill.reqsUnit')}`;
       if (s.twscrape.locked_until) {
         const t = new Date(s.twscrape.locked_until.replace(' ', 'T') + 'Z');
         if (t.getTime() > Date.now()) {
-          line += ` · 限速锁定中,${t.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} 自动续跑`;
+          line += ` · ${t('rate.lockedPre')} ${t.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} ${t('rate.lockedPost')}`;
         } else {
-          line += ' · 拉取中';
+          line += ` · ${t('rate.pulling')}`;
         }
       } else {
-        line += ' · 拉取中/空闲';
+        line += ` · ${t('rate.idle')}`;
       }
       $('backfill-note').textContent = line;
     }
@@ -118,10 +118,10 @@ async function refreshStatus() {
       const j = s.embed_job;
       if (j.running) {
         $('embed-note').textContent =
-          `批量嵌入(${j.backend})进行中: ${j.done}/${j.total}${j.rate ? ` · ${j.rate} 条/秒` : ''}`;
+          `${t('embed.bulkJob')}(${j.backend}) ${t('embed.jobRunning')}: ${j.done}/${j.total}${j.rate ? ` · ${j.rate} ${t('embed.perSec')}` : ''}`;
         setTimeout(refreshStatus, 3000);  // 任务运行时加速轮询
       } else if (j.error) {
-        $('embed-note').textContent = `上次嵌入出错: ${j.error}`;
+        $('embed-note').textContent = `${t('embed.lastErr')}: ${j.error}`;
       } else if (j.last_result) {
         $('embed-note').textContent = j.last_result;
       }
@@ -140,10 +140,10 @@ async function startBulkEmbed() {
       body: JSON.stringify({ backend }),
     })).json();
     if (r.error) { $('embed-note').textContent = r.error; return; }
-    $('embed-note').textContent = `已启动批量嵌入(${backend})…`;
+    $('embed-note').textContent = `${t('embed.started')}(${backend})…`;
     refreshStatus();
   } catch (e) {
-    $('embed-note').textContent = `启动失败:${e}`;
+    $('embed-note').textContent = `${t('timeline.startFail')}: ${e}`;
   } finally {
     btn.disabled = false;
   }
@@ -168,7 +168,7 @@ async function indexLoop() {
       await refreshStatus();
     }
   } catch (e) {
-    $('embed-text').textContent = `嵌入中断:${e}`;
+    $('embed-text').textContent = `${t('embed.interrupted')}: ${e}`;
   } finally {
     indexing = false;
   }
@@ -191,8 +191,8 @@ async function doSearch() {
   const mode = $('mode').value;
   let qvec = null;
   if (mode !== 'fts') {
-    if (!engine) { renderNote('模型未就绪,无法做语义检索'); return; }
-    try { qvec = await embedQuery(q); } catch (e) { renderNote(`查询向量失败:${e}`); return; }
+    if (!engine) { renderNote(t('search.noEngine')); return; }
+    try { qvec = await embedQuery(q); } catch (e) { renderNote(`${t('search.qvecFail')}: ${e}`); return; }
   }
   const body = {
     q, qvec, mode, k: 50,
@@ -227,8 +227,8 @@ function renderCards(hits, el, opts = {}) {
     const div = document.createElement('div');
     div.className = 'hit';
     const badges = [];
-    if (withScores && h.sim != null) badges.push(`<span class="badge">语义 ${(h.sim * 100).toFixed(0)}%</span>`);
-    if (withScores && h.fts_hit) badges.push('<span class="badge fts">关键词✓</span>');
+    if (withScores && h.sim != null) badges.push(`<span class="badge">${t('badge.semantic')} ${(h.sim * 100).toFixed(0)}%</span>`);
+    if (withScores && h.fts_hit) badges.push(`<span class="badge fts">${t('badge.keyword')}</span>`);
     const date = (h.date_sort || '').slice(0, 10);
     const srcUrl = `https://x.com/${h.author_handle || 'i'}/status/${h.tweet_id}`;
     const media = (h.media || []).map((m) =>
@@ -281,7 +281,7 @@ async function deleteBookmark(tweetId, cardEl) {
     cardEl.remove();
     refreshStatus();
   } catch (e) {
-    alert(`删除失败:${e}`);
+    alert(`${t('del.fail')}: ${e}`);
   }
 }
 
@@ -294,14 +294,14 @@ async function pollSyncJob() {
   if (!j) return;
   if (j.running) {
     $('sync-note').textContent =
-      `同步中(${j.phase},后端 ${j.backend}):取回 ${j.fetched},新增 ${j.new}…`;
+      `${t('sync.job')}(${j.phase}, ${t('sync.backend')} ${j.backend}): ${t('sync.fetched')} ${j.fetched}, ${t('sync.new')} ${j.new}…`;
     syncPollTimer = setTimeout(pollSyncJob, 2000);
     return;
   }
   syncPollTimer = null;
-  if (j.error) { $('sync-note').textContent = `同步失败:${j.error}`; return; }
+  if (j.error) { $('sync-note').textContent = `${t('sync.fail')}: ${j.error}`; return; }
   if (j.last_result) {
-    $('sync-note').textContent = `同步完成:${j.last_result}`;
+    $('sync-note').textContent = `${t('sync.done')}: ${j.last_result}`;
     await refreshStatus();
     indexLoop();
     if (!$('catview').hidden) loadCategories();
@@ -318,11 +318,11 @@ async function doSync() {
       body: JSON.stringify({}),
     })).json();
     if (res.error) { $('sync-note').textContent = res.error; return; }
-    $('sync-note').textContent = '同步已启动(后台)…';
+    $('sync-note').textContent = t('sync.started');
     clearTimeout(syncPollTimer);
     pollSyncJob();
   } catch (e) {
-    $('sync-note').textContent = `同步出错:${e}`;
+    $('sync-note').textContent = `${t('sync.err')}: ${e}`;
   } finally {
     btn.disabled = false;
   }
@@ -398,7 +398,7 @@ async function loadCategories() {
       if (clusters.options.llm_style) $('llm-style').value = clusters.options.llm_style;
     }
   } catch (e) {
-    $('cat-note').textContent = `加载分类失败:${e}`;
+    $('cat-note').textContent = `${t('cat.loadFail')}: ${e}`;
   }
 }
 
@@ -423,7 +423,7 @@ function renderChipRow(boxId, items, emptyText, totalCount) {
   }
   if (totalCount && totalCount > items.length) {
     box.insertAdjacentHTML('beforeend',
-      `<span class="muted">…共 ${totalCount} 簇,按规模显示前 ${items.length}</span>`);
+      `<span class="muted">…${t('chips.total')} ${totalCount} ${t('chips.totalUnit')} ${t('chips.more')} ${items.length}</span>`);
   }
 }
 
@@ -449,9 +449,9 @@ async function loadMoreBrowse() {
   if (r.error) { $('cat-note').textContent = r.error; return; }
   if (browseOffset === 0) {
     const parts = [];
-    if (filterSel.category != null) parts.push(`类目「${filterSel.category}」`);
-    if (filterSel.kw != null) parts.push(`关键词簇「${chipLabel['kw:' + filterSel.kw] ?? '#' + filterSel.kw}」`);
-    if (filterSel.llm != null) parts.push(`LLM簇「${chipLabel['llm:' + filterSel.llm] ?? '#' + filterSel.llm}」`);
+    if (filterSel.category != null) parts.push(`${t('hdr.category')}「${filterSel.category}」`);
+    if (filterSel.kw != null) parts.push(`${t('hdr.kw')}「${chipLabel['kw:' + filterSel.kw] ?? '#' + filterSel.kw}」`);
+    if (filterSel.llm != null) parts.push(`${t('hdr.llm')}「${chipLabel['llm:' + filterSel.llm] ?? '#' + filterSel.llm}」`);
     $('cat-header').innerHTML =
       `<h3 style="margin-bottom:8px">${parts.join(' ∩ ')} — 共 ${r.total} 条</h3>`;
   }
@@ -460,7 +460,7 @@ async function loadMoreBrowse() {
   if (r.has_more) {
     const more = document.createElement('button');
     more.className = 'ghost more-page';
-    more.textContent = '加载更多';
+    more.textContent = t('browse.more');
     more.addEventListener('click', () => { more.remove(); loadMoreBrowse(); });
     $('cat-results').appendChild(more);
   }
@@ -469,7 +469,7 @@ async function loadMoreBrowse() {
 async function doClassify() {
   const btn = $('btn-classify');
   btn.disabled = true;
-  $('cat-note').textContent = '正在生成分类(服务端嵌入类目描述 + 全量分配)…';
+  $('cat-note').textContent = t('cat.generating');
   try {
     let r = await (await fetch('/api/categories/embed', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -487,10 +487,10 @@ async function doClassify() {
       })).json();
     }
     if (r.error) throw new Error(r.error);
-    $('cat-note').textContent = `已分配 ${r.assigned} 条`;
+    $('cat-note').textContent = `${t('cat.assigned')} ${r.assigned} ${t('cat.assignedUnit')}`;
     loadCategories();
   } catch (e) {
-    $('cat-note').textContent = `分类失败:${e}`;
+    $('cat-note').textContent = `${t('cat.fail')}: ${e}`;
   } finally {
     btn.disabled = false;
   }
@@ -500,7 +500,7 @@ async function testLlm() {
   const btn = $('btn-llm-test');
   const out = $('llm-test-result');
   btn.disabled = true;
-  out.textContent = '测试中…';
+  out.textContent = t('llm.testing');
   try {
     const r = await (await fetch('/api/llm/test', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -514,7 +514,7 @@ async function testLlm() {
       (r.latency_ms != null ? `(${r.latency_ms}ms)` : '');
     out.style.color = r.ok ? 'var(--good)' : '#e5735f';
   } catch (e) {
-    out.textContent = `✗ 测试请求失败:${e}`;
+    out.textContent = `✗ ${t('llm.testFail')}: ${e}`;
     out.style.color = '#e5735f';
   } finally {
     btn.disabled = false;
@@ -536,18 +536,18 @@ async function pollClusterJob() {
         `命名中:第 ${j.done}/${j.total} 簇` + (j.current ? `,当前:${j.current}` : '');
     } else {
       $('cat-note').textContent =
-        `聚类中(${j.granularity ?? ''}):${j.current || '准备中'}…`;
+        `${t('cluster.running')}(${j.granularity ?? ''}): ${j.current || t('cluster.preparing')}…`;
     }
     clusterPollTimer = setTimeout(pollClusterJob, 2000);
     return;
   }
   clusterPollTimer = null;
   if (j.error) {
-    $('cat-note').textContent = `聚类失败:${j.error}`;
+    $('cat-note').textContent = `${t('cluster.fail')}: ${j.error}`;
     return;
   }
   if (j.result) {
-    $('cat-note').textContent = `完成:${j.result.note ?? ''}`;
+    $('cat-note').textContent = `${t('cluster.done')}: ${j.result.note ?? ''}`;
     loadCategories();
   }
 }
@@ -575,11 +575,11 @@ async function doCluster() {
       body: JSON.stringify(body),
     })).json();
     if (r.error) throw new Error(r.error);
-    $('cat-note').textContent = `任务已启动(${useLlm ? 'LLM' : '关键词'}分区${body.recluster ? ',重新聚类' : ',仅补命名'})…`;
+    $('cat-note').textContent = `${t('cluster.started')}(${useLlm ? t('cluster.setLLM') : t('cluster.setKW')}${body.recluster ? t('cluster.rc') : t('cluster.namesOnly')})…`;
     clearTimeout(clusterPollTimer);
     pollClusterJob();
   } catch (e) {
-    $('cat-note').textContent = `失败:${e.message || e}`;
+    $('cat-note').textContent = `${t('common.fail')}: ${e.message || e}`;
   } finally {
     btn.disabled = false;
   }
@@ -650,15 +650,15 @@ async function loadMapView(force = false) {
     const s = await (await fetch('/api/status')).json();
     const j = s.map_job;
     if (j && j.running) {
-      note.textContent = `地图生成中:${j.phase || '计算中'}(首次 UMAP 约 1-2 分钟)…`;
+      note.textContent = `${t('map.generating')}: ${j.phase || t('map.computing')} (${t('map.firstUMAP')})…`;
       setTimeout(() => loadMapView(true), 3000);
       return;
     }
-    if (j && j.error) note.textContent = `上次地图出错:${j.error}`;
+    if (j && j.error) note.textContent = `${t('map.lastErr')}: ${j.error}`;
     if (!mapData || force) {
       const r = await (await fetch(`/api/map/points?color=${$('map-color').value}`)).json();
       if (!r.points.length) {
-        note.textContent = '尚无地图坐标——点「重新生成地图」';
+        note.textContent = t('map.empty');
         return;
       }
       mapData = r;
@@ -668,7 +668,7 @@ async function loadMapView(force = false) {
     renderLegend(mapData);
     drawMap();
   } catch (e) {
-    note.textContent = `地图加载失败:${e}`;
+    note.textContent = `${t('map.loadFail')}: ${e}`;
   }
 }
 
@@ -701,7 +701,7 @@ function nearestPoint(mx, my) {
 }
 
 function groupLabel(g) {
-  if (g == null || !mapData) return '未分组';
+  if (g == null || !mapData) return t('map.ungrouped');
   return mapData.groups[String(g)] || '#' + g;
 }
 
@@ -769,11 +769,11 @@ async function loadTimeline() {
     const r = await (await fetch(`/api/timeline?unit=${$('timeline-unit').value}&window=${$('timeline-window').value}`)).json();
     const note = $('timeline-note');
     if (r.job && r.job.running) {
-      note.textContent = `生成中(${r.job.phase === 'narrating' ? 'LLM 撰写叙事,可能需要一两分钟' : '统计聚合'})…`;
+      note.textContent = `${t('timeline.generating')}(${r.job.phase === 'narrating' ? t('timeline.narrating') : t('timeline.aggregating')})…`;
       clearTimeout(timelinePollTimer);
       timelinePollTimer = setTimeout(async () => { await loadTimeline(); renderTimeline(r.timeline); }, 3000);
     } else if (r.job && r.job.error) {
-      note.textContent = `出错:${r.job.error}`;
+      note.textContent = `${t('timeline.err')}: ${r.job.error}`;
     } else if (r.job && r.job.last_result) {
       note.textContent = r.job.last_result;
     } else if (!r.timeline) {
@@ -781,7 +781,7 @@ async function loadTimeline() {
     }
     renderTimeline(r.timeline);
   } catch (e) {
-    $('timeline-note').textContent = `加载失败:${e}`;
+    $('timeline-note').textContent = `${t('timeline.loadFail')}: ${e}`;
   }
 }
 
@@ -818,10 +818,10 @@ async function runTimeline() {
       body: JSON.stringify({ unit: $('timeline-unit').value, window: $('timeline-window').value }),
     })).json();
     if (r.error) { $('timeline-note').textContent = r.error; return; }
-    $('timeline-note').textContent = '已启动…';
+    $('timeline-note').textContent = t('timeline.started');
     loadTimeline();
   } catch (e) {
-    $('timeline-note').textContent = `启动失败:${e}`;
+    $('timeline-note').textContent = `${t('timeline.startFail')}: ${e}`;
   } finally {
     btn.disabled = false;
   }
@@ -853,12 +853,12 @@ async function loadThreads() {
       clearTimeout(threadsPollTimer);
       threadsPollTimer = setTimeout(loadThreads, 5000);
     } else if (j && j.error) {
-      $('threads-note').textContent = `解读失败:${j.error}`;
+      $('threads-note').textContent = `${t('threads.genFail')}: ${j.error}`;
     } else if (j && j.last_result) {
       $('threads-note').textContent = j.last_result;
     }
   } catch (e) {
-    $('threads-note').textContent = `加载失败:${e}`;
+    $('threads-note').textContent = `${t('threads.loadFail')}: ${e}`;
   }
 }
 
@@ -882,28 +882,29 @@ function renderThreads(r) {
     const sec = document.createElement('div');
     sec.innerHTML = `<div class="thread-sec"><b>${title}</b>(${list.length}) <span class="muted">${sub}</span></div>`;
     box.appendChild(sec);
-    for (const t of list.slice(0, cls === 'pulse' ? 15 : 40)) {
+    for (const th of list.slice(0, cls === 'pulse' ? 15 : 40)) {
       const div = document.createElement('div');
       div.className = 'thread-card' + (warn && cls === 'dormant' ? ' dormant' : '');
-      const card = cards[`${t.set}:${t.cluster_id}`];
+      const card = cards[`${th.set}:${th.cluster_id}`];
       const stats = [
-        `${t.size} 条`, `活跃 ${t.active_months} 个月`,
-        `${t.first} ~ ${t.last}`,
-        cls === 'dormant' ? `<span class="warn">已沉寂 ${t.dormancy} 个月</span>` : '',
-        t.recent3 ? `近3月 ${t.recent3} 条` : '',
+        `${th.size} ${t('th.stat.count')}`,
+        `${t('th.stat.active')} ${th.active_months} ${t('th.months')}`,
+        `${th.first} ~ ${th.last}`,
+        cls === 'dormant' ? `<span class="warn">${t('th.dormant.since')} ${th.dormancy} ${t('th.months')}</span>` : '',
+        th.recent3 ? `${t('th.recent3')} ${th.recent3}` : '',
       ].filter(Boolean).join(' · ');
       div.innerHTML = `
         <div class="head">
-          <b data-set="${t.set}" data-id="${t.cluster_id}">${t.name}</b>
-          <span class="spark">${t.spark}</span>
+          <b data-set="${th.set}" data-id="${th.cluster_id}">${th.name}</b>
+          <span class="spark">${th.spark}</span>
         </div>
         <div class="stats">${stats}</div>
         ${card ? `<div class="cardllm">
-            <div><span class="lbl">是什么</span>${card.about || ''}</div>
-            <div><span class="lbl">下一步</span>${card.next || ''}</div>
+            <div><span class="lbl">${t('th.card.about')}</span>${card.about || ''}</div>
+            <div><span class="lbl">${t('th.card.next')}</span>${card.next || ''}</div>
           </div>` : ''}`;
       div.querySelector('b').addEventListener('click', () =>
-        showThreadBookmarks(t.set, t.cluster_id, t.name));
+        showThreadBookmarks(th.set, th.cluster_id, th.name));
       box.appendChild(div);
     }
   }
@@ -918,10 +919,10 @@ async function runThreadCards() {
       body: JSON.stringify({}),
     })).json();
     if (r.error) { $('threads-note').textContent = r.error; return; }
-    $('threads-note').textContent = '解读已启动…';
+    $('threads-note').textContent = t('threads.started');
     loadThreads();
   } catch (e) {
-    $('threads-note').textContent = `启动失败:${e}`;
+    $('threads-note').textContent = `${t('timeline.startFail')}: ${e}`;
   } finally {
     btn.disabled = false;
   }

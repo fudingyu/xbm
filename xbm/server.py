@@ -569,12 +569,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         size = p.stat().st_size
         self.send_response(200)
+        self._cors_headers()
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Content-Length", str(size))
         self.end_headers()
-        with p.open("rb") as f:
-            while chunk := f.read(1 << 20):
-                self.wfile.write(chunk)
+        try:
+            with p.open("rb") as f:
+                while chunk := f.read(1 << 20):
+                    self.wfile.write(chunk)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass  # 客户端中断(刷新/关页)属正常,不拖垮服务
 
     # ---------------- POST ----------------
     def do_POST(self):
