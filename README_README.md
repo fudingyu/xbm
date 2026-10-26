@@ -1,6 +1,7 @@
 # xbm — X.com Bookmark Manager
 
 **English version** | [中文版](README.md)
+> 🎮 **Try it without installing**: open [`docs/demo.html`](docs/demo.html) in any browser — an interactive demo with fictional data covering all five views.
 
 Fixes the two biggest pains of X.com bookmarks: **no semantic/fuzzy search**, and
 **no content-based browsing**. All data and compute stay on your machine:
@@ -18,8 +19,8 @@ Web UI (5 views): Search · Browse (3-dim intersection) · UMAP Map · Timeline 
 
 ## Feature Tour
 
-Screenshots below are from a real library (14,441 bookmarks / 12 categories /
-1,115 keyword clusters / 27 LLM clusters / 14,386 map points).
+Screenshots below are from the **interactive demo** (`docs/demo.html`, fictional data,
+12,000 bookmarks / 12 categories / 6 keyword clusters / 6 LLM clusters).
 
 ### 1. Search — literal + semantic, fused ranking
 
@@ -56,15 +57,14 @@ One folder level doesn't scale to thousands of items. xbm slices your library al
 **All three coexist.** The literal and semantic clusterings are fully independent — the
 same topic never lands in the same bucket on both sides. That's the point: an
 intersection means "semantically close **AND** worded alike", which narrows precisely.
-Selecting a category ∩ an LLM cluster below cuts 14,441 items down to **61**:
-
-![Browse intersection](docs/screenshots-en/02-categories_operation.png)
+Selecting a category ∩ an LLM cluster below cuts 12,000 items down to **61** — every
+narrowing step has an explicit justification and is instantly clickable:
 
 Every narrowing step has an explicit justification and is instantly clickable. A single
 tag system can only shrink results; three orthogonal dimensions answer different
 questions, and combining them is real retrieval.
 
-### 3. Map — a semantic galaxy of 14,386 bookmarks
+### 3. Map — a semantic galaxy of 12,000 bookmarks
 
 ![Map view](docs/screenshots-en/03-map.png)
 
@@ -89,9 +89,9 @@ Folders give you a **list**; the map gives you **structure**:
 Per-month/quarter topic stats with an LLM-written **narrative of how your focus
 evolved** (a line or two per period + an overall throughline). Revisiting old
 bookmarks, what you really want to know is "how did I get here". This turns scattered
-bookmarks back into a **cognitive trajectory** — from 2012 science notes, to 2020
-overseas life, to the AI-tools sprout of 2021-2022, to "AI monetization in practice"
-becoming the mainline after 2023 — each node says **what shifted and why**.
+bookmarks back into a **cognitive trajectory** — from broad knowledge explainers, to
+monetization case studies, to a two-quarter deep-dive on local inference engineering,
+to agentic dev tooling — each node says **what shifted and why**.
 
 Periods prefer bookmark time and fall back to tweet time, so classic old posts you
 bookmarked years ago still appear. Windows: all-time / last 24 months / last 12 months;
@@ -117,10 +117,10 @@ deterministic rules:
 | 🌱 **Emerging** | first seen <2 months ago | evaluate whether to invest |
 | ⚡ **Hype pulse** | ≤2 months of activity, then gone | recommendation-engine hype; skim and move on |
 
-Above: **dormant threads** (300+), each with a 12-month activity sparkline showing
+Above: **dormant threads**, each with a 12-month activity sparkline showing
 "was hot, now cold" — content the algorithm will never show you again but that you
-once deliberately saved. Below: **persistent threads** (776) — the skeleton of your
-knowledge assets ("Science explainers" active 44 months, "AI dev tools" 33 months).
+once deliberately saved. Below: **persistent threads** — the skeleton of your
+knowledge assets ("Knowledge explainers" active 44 months, "AI dev tools" 33 months).
 
 ![Persistent threads](docs/screenshots-en/06-threads-persistent.png)
 

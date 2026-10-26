@@ -187,12 +187,8 @@ function switchView(name) {
 }
 document.querySelectorAll('.views .tab').forEach(b =>
   b.addEventListener('click', () => switchView(b.dataset.v)));
-// deep link: demo.html?view=map
 window.addEventListener('resize', () => drawMap(false));
 window.addEventListener('load', () => drawMap(false));
-const want = new URLSearchParams(location.search).get('view');
-if (want && VIEWS.includes(want)) switchView(want);
-if (window.__errs.length) document.getElementById('doc-title').textContent = 'ERR: ' + window.__errs.join(' | ');
 
 // ---------- fictional data ----------
 const CATS = [
@@ -427,6 +423,12 @@ for (const [cls, title, sub, warn] of SEC) {
     tb.appendChild(div);
   }
 }
+drawMapWhenReady();
+
+// deep link: demo.html?view=map — must run AFTER data definitions
+const want = new URLSearchParams(location.search).get('view');
+if (want && VIEWS.includes(want)) switchView(want);
+if (window.__errs.length) document.getElementById('doc-title').textContent = 'ERR: ' + window.__errs.join(' | ');
 </script>
 </body>
 </html>
