@@ -235,6 +235,12 @@ x.com ──(twscrape/raw GraphQL,增量遇已知即停)──> xbm serve
     `https://` 静态页可直接 fetch `http://127.0.0.1:8080/v1`(llama-server 自带 CORS),
     所以版本 B 的 LLM URL 方案无需任何代理。
 22. **单测偶发 FAILED(Windows 临时文件占用)**:重跑即过,非代码问题。
+23. **sqlite-wasm bind 占位符数量必须与参数严格一致**:`VALUES(?,?,?,?,?,?,datetime('now'))`
+    只能绑 6 个,多传一个 `null` 即 `Bind index 7 is out of range`。
+24. **JS 大循环里不要用 Array.find/线性扫**:千簇 × 50 样本 × 14k 行的 find 是 O(n²),
+    先建 `Map(tweet_id → index)`;稀疏引领聚类对 14k×~800 簇 Map 迭代约 160s。
+25. **webapp 视图函数切换**:main.js 里 switchView 定义一次(8 视图),VIEWS 数组在
+    顶部,新视图要同时加 VIEWS、index.html 的 section 和按钮。
 
 ---
 
@@ -253,31 +259,44 @@ x.com ──(twscrape/raw GraphQL,增量遇已知即停)──> xbm serve
 - 增量同步/嵌入/聚类/地图/脉络全部**后台任务化**,页面 2-5 秒轮询进度,刷新自动接管。
 - 网页删除(单条)与全量同步镜像删除双向。
 
-## 7. 版本 B 已实现功能清单
+## 7. 版本 B 已实现功能清单(2026-10-27 更新:分析功能已全部移植)
 
-- OPFS SQLite(sahpool,显式安装)+ 表结构精简版(与 Python 版 tweet 表兼容)。
+- OPFS SQLite(sahpool,显式安装)+ schema 自动迁移(缺列/缺表自动补)。
 - 模型:URL / 本地文件 → WebGPU;批量嵌入循环(batch 16)+ 进度。
 - Bookmarklet 采集:拖书签栏 → x.com 页内翻页采集(GraphQL 同源,queryId
   `iblrFnKr6PZUR-dWpfXG6g` 硬编码,**会随 x.com 轮换失效,需要自我更新机制**)→
   postMessage 回传(origin 校验 `https://x.com`,测试模式 `?test=1` 收同源)→ 去重合并。
-- 「Test import」按钮:10 条合成数据直测合并链路。
 - 检索:余弦 + 子串 RRF(JS 版)。
+- **类目零样本**:12 类目描述浏览器嵌入 → 全量余弦 top-1(14441 条已分配);
+  类目向量持久化 meta,增量自动归位(assignMissingAll)。
+- **双方法聚类(JS 全移植)**:关键词分区=bigram 分词 + IDF 稀疏引领聚类
+  (14441 条 163s → 859 簇;注意与 Python 版 jieba 词级不同,JS 用 bigram);
+  LLM 分区=嵌入抽样引领 + 全量质心归并;粒度四档可选;LLM URL 命名(可选)。
+- **三维交集浏览**:类目 × 关键词簇 × LLM 簇 chips 点选 AND 过滤 + 分页
+  (实测:AI & LLM ∩ 关键词簇 = 42 条)。
+- **地图**:PCA 幂迭代(JS,零依赖,4.1s/14441 点)+ canvas 散点缩放/平移/悬停/点击;三种着色。
+- **时间脉络**:按月/季 × 时间窗聚合;LLM 分段叙事(重试梯,存 localStorage);
+  无 LLM 时统计照常。
+- **线索账本**:中断/持续/新芽/脉冲确定性分类(294 dormant 实测)+ sparkline +
+  LLM 卡片(可选,存 localStorage)。
 - 存储位置:OPFS / 本地真实 .db 文件(File System Access,句柄持久化+重连+自动保存)
-  + 现有 .db 导入(merge/replace,向量随行,已用真实 190MB 库验证)+ JSON 导出。
+  + 现有 .db 导入(merge/replace,向量随行,已用真实 190MB 库验证)+ JSON 导出/导入。
 - 内置嵌入基准(Settings → Benchmark)。
+- 已知偏差 vs Python 版:分词用 CJK bigram(非 jieba,簇名质量略糙);无 HDBSCAN
+  (引领聚类);时间线用推文时间(bookmarklet 无书签时间戳);LLM 分区 coarse 粒度
+  在同质语料上只会得 1 大簇(与 Python 一致),要更多簇选 fine/very fine。
 
-## 8. 版本 B 待办(按优先级)
+## 8. 版本 B 待办(按优先级,2026-10-27 更新)
 
-1. **分析功能 JS 移植**:聚类(词向量引领聚类是纯算法,可直接移植;IDF 稀疏余弦 +
-   leader-cluster)、时间脉络(纯 SQL 聚合 + LLM URL)、线索账本(纯计算)。
-2. **FTS5/中文子串检索**:sqlite-wasm 构建含 FTS5(需验证 trigram);不行就 JS 端
-   trigram 索引兜底。
-3. **Bookmarklet queryId 自更新**:正则 x.com 页面 JS bundle 提取新 queryId/features
+1. **Bookmarklet queryId 自更新**:正则 x.com 页面 JS bundle 提取新 queryId/features
    (现在硬编码,轮换后 400)。
-4. **真实 Chrome 验证**:Bookmarklet 真实采集 + File System Access 选路径 + 真实 Chrome
-   嵌入基准(用户尚未做;IAB 无法测文件选择器)。
-5. JSON 导入(目前只有 JSON 导出 + .db 导入)。
-6. 集成测试自动化(playwright 脚本化 §7 流程)。
+2. **真实 Chrome 验证**:Bookmarklet 真实采集 + File System Access 选路径(用户尚未做;
+   IAB 无法测文件选择器)+ 真实 Chrome 嵌入基准复核。
+3. ~~分析功能 JS 移植~~ ✅ 已完成(2026-10-27:类目/双聚类/交集/地图/时间线/线索)。
+4. ~~JSON 导入~~ ✅ 已完成(Data 视图 Import JSON)。
+5. LLM 叙事/卡片/命名的端到端验证需要 llama-server 运行(代码路径与 Python 版同模板)。
+6. 集成测试自动化(playwright 脚本化)。
+7. 时间线大窗口叙事时长:50 期需 ~25 分钟(2B 模型),可换更大模型或后台化。
 
 ## 9. 版本 A 待办
 
