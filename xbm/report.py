@@ -5,6 +5,7 @@ import sqlite3
 from collections import Counter
 
 from . import embed, textproc
+from .i18n import t
 
 
 def _pct(n: int, total: int) -> str:
@@ -15,8 +16,9 @@ def build_report(conn: sqlite3.Connection) -> str:
     out = []
     total = conn.execute("SELECT COUNT(*) FROM tweet").fetchone()[0]
     bookmarks = conn.execute("SELECT COUNT(*) FROM bookmark").fetchone()[0]
-    out.append(f"=== X 书签数据报告 ===")
-    out.append(f"推文总数(去重后): {total}   书签记录: {bookmarks}")
+    out.append("=== " + t("X 书签数据报告", "X Bookmark Data Report") + " ===")
+    out.append(f"{t('推文总数(去重后)', 'Tweets (deduped)')}: {total}   "
+            f"{t('书签记录', 'bookmark records')}: {bookmarks}")
     if not total:
         return "\n".join(out) + "\n(库为空,先运行 sync 或 import)"
 
@@ -25,19 +27,21 @@ def build_report(conn: sqlite3.Connection) -> str:
         "  SELECT COALESCE((SELECT bookmarked_at FROM bookmark b WHERE b.tweet_id=t.tweet_id), "
         "                  t.created_at) AS date_sort FROM tweet t)"
     ).fetchone()
-    out.append(f"时间范围: {row[0]} ~ {row[1]}")
+    out.append(f"{t('时间范围', 'Date range')}: {row[0]} ~ {row[1]}")
 
     media = conn.execute("SELECT COUNT(*) FROM tweet WHERE json_array_length(media_json)>0").fetchone()[0]
     urls = conn.execute("SELECT COUNT(*) FROM tweet WHERE json_array_length(urls_json)>0").fetchone()[0]
     rt = conn.execute("SELECT COUNT(*) FROM tweet WHERE is_retweet=1").fetchone()[0]
     rp = conn.execute("SELECT COUNT(*) FROM tweet WHERE is_reply=1").fetchone()[0]
-    out.append(f"含媒体: {media} ({_pct(media, total)})   含外链: {urls} ({_pct(urls, total)})")
-    out.append(f"转推: {rt} ({_pct(rt, total)})   回复: {rp} ({_pct(rp, total)})")
+    out.append(f"{t('含媒体', 'with media')}: {media} ({_pct(media, total)})   "
+            f"{t('含外链', 'with links')}: {urls} ({_pct(urls, total)})")
+    out.append(f"{t('转推', 'retweets')}: {rt} ({_pct(rt, total)})   "
+            f"{t('回复', 'replies')}: {rp} ({_pct(rp, total)})")
 
     lang_stat = Counter()
     for (text,) in conn.execute("SELECT text FROM tweet"):
         lang_stat[textproc.detect_lang(text)] += 1
-    out.append("语言(启发式): " + "  ".join(
+    out.append(t("语言(启发式)", "Language (heuristic)") + ": " + "  ".join(
         f"{k}: {v} ({_pct(v, total)})" for k, v in lang_stat.most_common()))
 
     lengths = [r[0] for r in conn.execute("SELECT LENGTH(text) FROM tweet")]
@@ -48,11 +52,11 @@ def build_report(conn: sqlite3.Connection) -> str:
             if buckets[i] <= L < buckets[i + 1]:
                 bucket_n[i] += 1
                 break
-    out.append("文本长度分布: " + "  ".join(
+    out.append(t("文本长度分布", "Text length distribution") + ": " + "  ".join(
         f"{buckets[i]}-{buckets[i+1] if buckets[i+1] < 10**9 else '+'}: {bucket_n[i]}"
         for i in range(len(buckets) - 1)))
 
-    out.append("Top 作者:")
+    out.append(t("Top 作者:", "Top authors:"))
     for r in conn.execute(
             "SELECT COALESCE(author_handle,'(未知)') AS h, COUNT(*) AS n "
             "FROM tweet GROUP BY h ORDER BY n DESC LIMIT 10"):
@@ -64,10 +68,10 @@ def build_report(conn: sqlite3.Connection) -> str:
             d = u.split("//", 1)[-1].split("/", 1)[0]
             domains[d.removeprefix("www.")] += 1
     if domains:
-        out.append("Top 外链域名:")
+        out.append(t("Top 外链域名:", "Top linked domains:"))
         for d, n in domains.most_common(10):
             out.append(f"  {d}: {n}")
 
     done, tot = embed.coverage(conn)
-    out.append(f"嵌入覆盖: {done}/{tot} ({_pct(done, tot)})")
+    out.append(f"{t('嵌入覆盖', 'Embedding coverage')}: {done}/{tot} ({_pct(done, tot)})")
     return "\n".join(out)

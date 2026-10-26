@@ -141,7 +141,8 @@ def cmd_search(args):
 
 def cmd_serve(args):
     from . import server
-    server.serve(db_file=args.db, port=args.port, model_path=args.model, web_dir=args.web)
+    server.serve(db_file=args.db, port=args.port, model_path=args.model,
+                 web_dir=args.web, host=args.host)
     return 0
 
 
