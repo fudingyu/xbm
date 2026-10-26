@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>xbm — X Bookmarks, local &amp; private</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>xbm <span class="muted">· your X bookmarks, local &amp; private</span></h1>
+    <div id="conn" class="status">db: starting…</div>
+  </header>
+
+  <nav class="views">
+    <button id="view-search" class="tab active">Search</button>
+    <button id="view-collect" class="tab">Collect</button>
+    <button id="view-data" class="tab">Data</button>
+    <button id="view-settings" class="tab">Settings</button>
+  </nav>
+
+  <!-- Search -->
+  <section id="searchview">
+    <div class="searchbar">
+      <input id="q" type="text" placeholder="Search semantically or by keyword, Enter to run" />
+      <button id="go">Search</button>
+    </div>
+    <div id="results"><p class="muted">Load the model (Settings), collect or import bookmarks, then search.</p></div>
+  </section>
+
+  <!-- Collect -->
+  <section id="collectview" hidden>
+    <ol class="steps">
+      <li>Drag this button to your browser's bookmarks bar:
+        <a id="bm-link" class="bm" href="#">📌 xbm collect</a>
+        <button id="bm-copy" class="ghost">copy code</button></li>
+      <li>Click <b>Open x.com bookmarks</b> below — a new tab opens.</li>
+      <li>In that tab, click the <b>📌 xbm collect</b> bookmark. It pages through your bookmarks and sends them back here automatically.</li>
+    </ol>
+    <button id="btn-open-x">Open x.com bookmarks ↗</button>
+    <button id="btn-test-import" class="ghost">Test import (sample data)</button>
+    <span id="collect-note" class="muted"></span>
+    <p class="muted" id="collect-progress"></p>
+    <p class="muted">Notes: the collector runs inside the x.com tab (same-origin, your cookies stay there).
+      X does not expose bookmark timestamps, so dates fall back to tweet time. Delete-mirroring requires a full re-collect.</p>
+  </section>
+
+  <!-- Data -->
+  <section id="dataview" hidden>
+    <div id="data-stats" class="muted">…</div>
+    <button id="btn-export">Export JSON backup</button>
+    <button id="btn-wipe" class="ghost danger">Wipe local database</button>
+    <p class="muted">Data lives in this browser's OPFS (private, on your disk, never uploaded).
+      Export regularly if you care about backups.</p>
+    <div id="data-list"></div>
+  </section>
+
+  <!-- Settings -->
+  <section id="settingsview" hidden>
+    <h3>Embedding model</h3>
+    <div class="row">
+      <select id="model-source-type">
+        <option value="url" selected>From URL</option>
+        <option value="file">From local file</option>
+      </select>
+      <input id="model-url" type="text" style="flex:1"
+             placeholder="https://… or http://127.0.0.1:8788/model" />
+      <input id="model-file" type="file" accept=".litertlm" hidden />
+      <button id="btn-load-model">Load model</button>
+    </div>
+    <p class="muted">The model (~160MB .litertlm, EmbeddingGemma) runs in this tab via WebGPU and is
+      never uploaded anywhere. File option: pick the .litertlm from your disk.</p>
+    <h3>LLM server <span class="muted">(optional — cluster naming, timeline narrative, thread cards)</span></h3>
+    <div class="row">
+      <input id="llm-base" type="text" style="flex:1" placeholder="http://127.0.0.1:8080/v1 (llama-server) or https://api…/v1" />
+      <input id="llm-model" type="text" placeholder="model name" style="width:140px" />
+      <button id="btn-llm-save" class="ghost">Save</button>
+      <span id="llm-note" class="muted"></span>
+    </div>
+    <h3>Benchmark</h3>
+    <button id="btn-bench" class="ghost" disabled>Run embedding benchmark (needs model)</button>
+    <pre id="bench-out" class="muted"></pre>
+  </section>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -14,6 +14,19 @@ x.com 书签 ──(增量同步,cookie)──> SQLite(推文 + FTS5 全文索�
 
 > 仅读取你自己账号的书签(只读);请自行评估并遵守 x.com 服务条款,触发限速时工具会自动等待。
 
+## 两个版本
+
+| | 服务版(`web/`) | 静态版(`webapp/`) |
+|---|---|---|
+| 运行方式 | `python -m xbm serve` 起本地后端 | 纯前端,双击/静态托管即可 |
+| 数据存储 | 本机 SQLite(`xbm.db`) | 浏览器 OPFS(SQLite-WASM,持久) |
+| 嵌入推理 | Python 进内 litert_lm(CPU/GPU)+ 浏览器兜底 | 全部在浏览器(WebGPU) |
+| 功能 | **全部**:同步/聚类/时间脉络/线索/地图 | 搜索、嵌入、收集(书签小工具)、数据管理 |
+| 适合 | 日常主力使用 | 免安装体验、GitHub Pages 托管、随手收集 |
+
+静态版打开页面 → Settings 加载模型 → Collect 页装书签小工具即可在浏览 x.com 时一键收藏;
+数据存在浏览器 OPFS,换浏览器/清缓存会丢,注意用 Data 页导出备份。详见 [xbm/README.md](xbm/README.md) 的「部署形态」。
+
 ## 准备模型(一次)
 
 下载 EmbeddingGemma 的 `.litertlm` 模型文件(HuggingFace `litert-community` 等处发布,
@@ -199,6 +212,7 @@ xbm/            Python 包(零第三方依赖,除 numpy;twscrape 可选)
   search.py     FTS+向量+RRF 混合检索
   server.py     本地 API/静态/模型流服务
   embed.py      向量存取(BLOB float32)
-web/            浏览器前端(vite + @litert-lm/core,WebGPU 嵌入)
+web/            服务版前端(vite + @litert-lm/core + Python 后端)
+webapp/         静态版前端(OPFS SQLite-WASM + 浏览器内模型 + 收集器,纯前端)
 tests/          单测 + 合成存档 fixture 生成器
 ```

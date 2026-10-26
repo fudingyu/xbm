@@ -141,6 +141,21 @@ Each alone is a tool; together they form a loop — **search recalls, browse nar
 map shows the whole, timeline explains change, threads decide what's next**. Bookmarks
 stop being "saved and never opened" and become an asset that surfaces its own structure.
 
+## Two editions
+
+| | Server edition (`web/`) | Static edition (`webapp/`) |
+|---|---|---|
+| How it runs | `python -m xbm serve` starts a local backend | pure frontend — open the page or host it statically |
+| Data store | local SQLite (`xbm.db`) | browser OPFS (SQLite-WASM, persistent) |
+| Embedding | in-process litert_lm (CPU/GPU) + browser fallback | fully in-browser (WebGPU) |
+| Features | **everything**: sync/clustering/timeline/threads/map | search, embedding, collection (bookmarklet), data management |
+| Best for | daily driver | zero-install demo, GitHub Pages hosting, collect-as-you-browse |
+
+In the static edition: open the page → load the model in Settings → install the
+bookmarklet from the Collect page to save posts while browsing x.com. Data lives in the
+browser's OPFS — exporting a backup from the Data page is advised. See
+[xbm/README.md](xbm/README.md) ("部署形态" / deployment forms).
+
 ## Prepare the model (once)
 
 Download an EmbeddingGemma `.litertlm` model file (published on HuggingFace
@@ -221,7 +236,8 @@ xbm/            Python package (numpy + jieba; twscrape/umap/hdbscan optional)
   threads.py    dormant/persistent/emerging/pulse thread analysis
   timeline.py   per-period digests + LLM narrative
   i18n.py       bilingual messages (zh/en)
-web/            browser frontend (vite + @litert-lm/core; in-browser WebGPU embedding)
+web/            server-edition frontend (vite + @litert-lm/core + Python backend)
+webapp/         static-edition frontend (OPFS SQLite-WASM + in-browser model + collector)
   src/i18n.js   zh/en UI dictionary
 tests/          unit tests + synthetic archive fixtures
 docs/screenshots/  UI screenshots (from real data)
