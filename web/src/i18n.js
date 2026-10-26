@@ -82,6 +82,7 @@ const DICT = {
     'timeline.generating': '生成中', 'timeline.narrating': 'LLM 撰写叙事,可能需要一两分钟',
     'timeline.aggregating': '统计聚合', 'timeline.err': '出错', 'timeline.loadFail': '加载失败',
     'timeline.started': '已启动…', 'timeline.startFail': '启动失败',
+    'timeline.noNarrative': '暂无 LLM 叙事——统计见下方原始数据',
     'threads.genFail': '解读失败', 'threads.loadFail': '加载失败',
     'threads.started': '解读已启动…',
     'th.recent3': '近3月',
@@ -171,6 +172,7 @@ const DICT = {
     'timeline.generating': 'Generating', 'timeline.narrating': 'LLM writing the narrative — may take a minute or two',
     'timeline.aggregating': 'aggregating stats', 'timeline.err': 'Error', 'timeline.loadFail': 'Load failed',
     'timeline.started': 'Started…', 'timeline.startFail': 'start failed',
+    'timeline.noNarrative': 'no LLM narrative yet — see raw stats below',
     'threads.genFail': 'Card generation failed', 'threads.loadFail': 'Load failed',
     'threads.started': 'Card generation started…',
     'th.recent3': '3mo',
@@ -182,7 +184,9 @@ let LANG = localStorage.getItem('xbm_lang')
   || ((navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en');
 
 export function t(key) {
-  return (DICT[LANG] && DICT[LANG][key]) || DICT.zh[key] || key;
+  const d = DICT[LANG];
+  if (d && key in d) return d[key];
+  return DICT.zh[key] ?? key;
 }
 export function lang() { return LANG; }
 export function setLang(l) {

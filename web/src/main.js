@@ -74,14 +74,16 @@ async function boot() {
     setStatus(t('boot.modelDL'));
     const resp = await fetch('/model');
     const total = +resp.headers.get('Content-Length') || 0;
-    const stream = trackProgress(resp.body, total, (n, t) =>
-      setStatus(`${t('boot.modelPct')} ${t ? Math.round((n / t) * 100) : Math.round(n / 1048576) + 'MB'}%`));
+    const stream = trackProgress(resp.body, total, (n, tot) =>
+      setStatus(`${t('boot.modelPct')} ${tot ? Math.round((n / tot) * 100) : Math.round(n / 1048576) + 'MB'}%`));
     const t0 = performance.now();
     // 纯文本 270m 模型不能带 vision/audio backend(会去找视觉编码器缓冲区)
     try {
       engine = await EmbeddingEngine.create({ model: stream, backend: Backend.GPU });
     } catch (e) {
       setStatus(`${t('boot.fail')}: ${e} (${t('boot.needWebGPU')})`);
+      if (e && e.stack) console.error('xbm load stack:', e.stack);
+      window.__xbmStack = String(e && e.stack || e);
       return;
     }
     setStatus(`${t('boot.ready')} (${t('boot.loadSec')} ${((performance.now() - t0) / 1000).toFixed(1)}s)`);
@@ -103,9 +105,9 @@ async function refreshStatus() {
       const req = s.twscrape.requests;
       let line = `${t('backfill.total')} ${s.total} · ${t('backfill.reqs')} ${req ?? '?'} ${t('backfill.reqsUnit')}`;
       if (s.twscrape.locked_until) {
-        const t = new Date(s.twscrape.locked_until.replace(' ', 'T') + 'Z');
+        const lockT = new Date(s.twscrape.locked_until.replace(' ', 'T') + 'Z');
         if (t.getTime() > Date.now()) {
-          line += ` · ${t('rate.lockedPre')} ${t.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} ${t('rate.lockedPost')}`;
+          line += ` · ${t('rate.lockedPre')} ${lockT.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} ${t('rate.lockedPost')}`;
         } else {
           line += ` · ${t('rate.pulling')}`;
         }
@@ -234,8 +236,8 @@ function renderCards(hits, el, opts = {}) {
     const media = (h.media || []).map((m) =>
       `<img src="${m.url}" loading="lazy" onerror="this.remove()" alt="">`).join('');
     const urls = (h.urls || []).slice(0, 8).map((u) => {
-      const t = u.length > 70 ? u.slice(0, 70) + '…' : u;
-      return `<a href="${u}" target="_blank" rel="noreferrer">${t}</a>`;
+      const ut = u.length > 70 ? u.slice(0, 70) + '…' : u;
+      return `<a href="${u}" target="_blank" rel="noreferrer">${ut}</a>`;
     }).join('');
     const long = (h.text || '').length > 220;
     div.innerHTML = `
@@ -453,7 +455,7 @@ async function loadMoreBrowse() {
     if (filterSel.kw != null) parts.push(`${t('hdr.kw')}「${chipLabel['kw:' + filterSel.kw] ?? '#' + filterSel.kw}」`);
     if (filterSel.llm != null) parts.push(`${t('hdr.llm')}「${chipLabel['llm:' + filterSel.llm] ?? '#' + filterSel.llm}」`);
     $('cat-header').innerHTML =
-      `<h3 style="margin-bottom:8px">${parts.join(' ∩ ')} — 共 ${r.total} 条</h3>`;
+      `<h3 style="margin-bottom:8px">${parts.join(' ∩ ')} ${t('browse.total')}${r.total}${t('browse.totalUnit')}</h3>`;
   }
   renderCards(r.hits, $('cat-results'), { withScores: false });
   browseOffset += r.hits.length;
@@ -785,18 +787,18 @@ async function loadTimeline() {
   }
 }
 
-function renderTimeline(t) {
+function renderTimeline(tl) {
   const narr = $('timeline-narrative');
   const box = $('timeline-digest');
   narr.textContent = '';
   box.innerHTML = '';
-  if (!t) return;
-  if (t.narrative) {
-    narr.textContent = t.narrative;
+  if (!tl) return;
+  if (tl.narrative) {
+    narr.textContent = tl.narrative;
   } else {
-    narr.innerHTML = '<span class="muted">(暂无 LLM 叙事——统计见下方原始数据)</span>';
+    narr.innerHTML = `<span class="muted">(${t('timeline.noNarrative')})</span>`;
   }
-  for (const d of t.digest || []) {
+  for (const d of tl.digest || []) {
     const div = document.createElement('div');
     div.className = 'tl-period';
     const cats = (d.cats || []).map(([k, v]) => `${k} ${v}`).join(', ');

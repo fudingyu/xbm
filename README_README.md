@@ -23,7 +23,7 @@ Screenshots below are from a real library (14,441 bookmarks / 12 categories /
 
 ### 1. Search — literal + semantic, fused ranking
 
-![Search view](docs/screenshots/01-search.png)
+![Search view](docs/screenshots-en/01-search.png)
 
 X's native search matches literal strings only. xbm runs **both retrieval paths** and
 fuses the results:
@@ -42,7 +42,7 @@ filters included, plus Hybrid / Semantic / Keyword modes.
 
 ### 2. Browse — three orthogonal dimensions, arbitrary intersections
 
-![Browse view](docs/screenshots/02-categories.png)
+![Browse view](docs/screenshots-en/02-categories.png)
 
 One folder level doesn't scale to thousands of items. xbm slices your library along
 **three independent, non-overlapping dimensions**:
@@ -58,7 +58,7 @@ same topic never lands in the same bucket on both sides. That's the point: an
 intersection means "semantically close **AND** worded alike", which narrows precisely.
 Selecting a category ∩ an LLM cluster below cuts 14,441 items down to **61**:
 
-![Browse intersection](docs/screenshots/02-categories_operation.png)
+![Browse intersection](docs/screenshots-en/02-categories_operation.png)
 
 Every narrowing step has an explicit justification and is instantly clickable. A single
 tag system can only shrink results; three orthogonal dimensions answer different
@@ -66,7 +66,7 @@ questions, and combining them is real retrieval.
 
 ### 3. Map — a semantic galaxy of 14,386 bookmarks
 
-![Map view](docs/screenshots/03-map.png)
+![Map view](docs/screenshots-en/03-map.png)
 
 UMAP projection (auto-falls back to numpy-PCA without umap-learn) maps every bookmark to
 2D, colored by category / keyword cluster / LLM cluster.
@@ -84,7 +84,7 @@ Folders give you a **list**; the map gives you **structure**:
 
 ### 4. Timeline — how your focus evolved
 
-![Timeline view](docs/screenshots/04-timeline.png)
+![Timeline view](docs/screenshots-en/04-timeline.png)
 
 Per-month/quarter topic stats with an LLM-written **narrative of how your focus
 evolved** (a line or two per period + an overall throughline). Revisiting old
@@ -99,7 +99,7 @@ long ranges are narrated in segments so a single failure can't kill the whole ru
 
 ### 5. Threads — separating "algorithm hype" from "my knowledge assets"
 
-![Threads view](docs/screenshots/05-threads.png)
+![Threads view](docs/screenshots-en/05-threads.png)
 
 The most counter-intuitive view, and the core design.
 
@@ -122,7 +122,7 @@ Above: **dormant threads** (300+), each with a 12-month activity sparkline showi
 once deliberately saved. Below: **persistent threads** (776) — the skeleton of your
 knowledge assets ("Science explainers" active 44 months, "AI dev tools" 33 months).
 
-![Persistent threads](docs/screenshots/06-threads-persistent.png)
+![Persistent threads](docs/screenshots-en/06-threads-persistent.png)
 
 Each thread can optionally get an LLM card: **what it is** and **what's missing next**
 (the deterministic stats never need an LLM).
@@ -240,7 +240,7 @@ web/            server-edition frontend (vite + @litert-lm/core + Python backend
 webapp/         static-edition frontend (OPFS SQLite-WASM + in-browser model + collector)
   src/i18n.js   zh/en UI dictionary
 tests/          unit tests + synthetic archive fixtures
-docs/screenshots/  UI screenshots (from real data)
+docs/screenshots-en/  UI screenshots (from real data)
 ```
 
 ## License
