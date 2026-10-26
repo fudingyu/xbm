@@ -401,7 +401,13 @@ class Handler(BaseHTTPRequestHandler):
         conn = _conn(self.server)
         try:
             if path in ("/", "/index.html"):
-                self._file(self.server.web_dir / "index.html", "text/html; charset=utf-8")
+                index = self.server.web_dir / "index.html"
+                if not index.is_file():
+                    self._json(200, {"hint": "web/dist 不存在。发布包附带了构建好的 dist;"
+                                             "从源码构建请运行 cd web && npm install && npm run build,"
+                                             "或从 GitHub Release 下载预构建包解压到 web/dist。"})
+                    return
+                self._file(index, "text/html; charset=utf-8")
             elif path == "/model":
                 self._stream_model()
             elif path == "/api/config":
@@ -524,7 +530,9 @@ class Handler(BaseHTTPRequestHandler):
     def _stream_model(self):
         p = self.server.model_path
         if not p.is_file():
-            self._json(404, {"error": f"模型文件不存在: {p}"})
+            self._json(404, {"error": f"模型文件不存在: {p}。"
+                                      "请把 .litertlm 放入 ./models/ 或设置 XBM_MODEL_PATH"
+                                      "(详见 models/PUT-MODEL-HERE.txt)。"})
             return
         size = p.stat().st_size
         self.send_response(200)
