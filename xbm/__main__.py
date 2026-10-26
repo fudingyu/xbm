@@ -3,6 +3,7 @@
 import argparse
 import sys
 
+from .i18n import t
 from . import __version__, config, db, embed, importer, report as report_mod, search as search_mod, sync as sync_mod
 
 
@@ -13,7 +14,8 @@ def cmd_sync(args):
     if args.cookie:
         creds = sync_mod.parse_cookie_string(args.cookie)
         if not creds["auth_token"] or not creds["ct0"]:
-            print("cookie 串里没解析出 auth_token/ct0,检查格式(应含 auth_token=...; ct0=...)")
+            print(t("cookie 串里没解析出 auth_token/ct0,检查格式(应含 auth_token=...; ct0=...)",
+      "No auth_token/ct0 parsed from cookie string; expected auth_token=...; ct0=..."))
             return 1
         print(f"已保存到 {sync_mod.save_credentials(creds['auth_token'], creds['ct0'])}")
         return 0
@@ -33,10 +35,11 @@ def cmd_sync(args):
             backend = "twscrape"
         except ImportError:
             backend = "raw"
-    print(f"开始增量同步(后端 {backend};遇已知推文即停,可分批多次跑)…")
+    print(t(f"开始增量同步(后端 {backend};遇已知推文即停,可分批多次跑)…",
+      f"Incremental sync (backend {backend}; stops at first known tweet)…"))
 
     def on_progress(st):
-        print(f"  进度: 取回 {st.fetched},新增 {st.new_tweets},重复 {st.dup_tweets}")
+        print(f"  {t('进度: 取回', 'progress: fetched')} {st.fetched},{t('新增', 'new')} {st.new_tweets},{t('重复', 'dup')} {st.dup_tweets}")
 
     try:
         if backend == "twscrape":
@@ -44,12 +47,13 @@ def cmd_sync(args):
         else:
             st = sync_mod.sync(conn, full=args.full, max_pages=args.max_pages, on_page=on_progress)
     except sync_mod.SyncError as e:
-        print(f"同步失败: {e}")
+        print(f"{t('同步失败:', 'Sync failed:')} {e}")
         return 1
-    print(f"完成:{st.fetched} 条取回,新增 {st.new_tweets},重复 {st.dup_tweets}。({st.stopped_reason})")
+    print(f"{t('完成:', 'Done:')} {t('取回', 'fetched')} {st.fetched},{t('新增', 'new')} {st.new_tweets},{t('重复', 'dup')} {st.dup_tweets}. ({st.stopped_reason})")
     if st.new_tweets:
         from . import auto
-        print("自动处理新书签(嵌入 + 类目/分区归位)…")
+        print(t("自动处理新书签(嵌入 + 类目/分区归位)…",
+      "Auto-processing new bookmarks (embed + assign categories/clusters)…"))
         r = auto.classify_new(conn)
         print(f"  嵌入 {r['embedded']} | 类目 {r['category']} | "
               f"关键词分区 {r['kw']}(未匹配 {r['kw_unmatched']}) | "
@@ -77,7 +81,8 @@ def cmd_embed(args):
     if not args.base:  # 进程内 litert_lm,GPU(WebGPU)实测比 CPU 快 ~67%
         try:
             from . import embed as emb
-            print(f"本地模型批量嵌入(litert_lm {args.backend})…")
+            print(t(f"本地模型批量嵌入(litert_lm {args.backend})…",
+      f"Bulk embedding with local model (litert_lm {args.backend})…"))
             last = [0]
 
             def progress(total):
@@ -87,7 +92,7 @@ def cmd_embed(args):
 
             n = emb.ensure_embeddings_local(
                 conn, embedder=emb.get_embedder(args.backend), on_batch=progress)
-            print(f"完成,共嵌入 {n} 条。")
+            print(f"{t('完成,共嵌入', 'Done.')} {n} {t('条', 'bookmarks embedded')}.")
             return 0
         except ImportError:
             print("未装 litert_lm(pip install litert-lm),回退 OpenAI 兼容服务模式")
@@ -100,7 +105,7 @@ def cmd_embed(args):
     except RuntimeError as e:
         print(f"失败: {e}")
         return 1
-    print(f"完成,共嵌入 {n} 条。")
+    print(f"{t('完成,共嵌入', 'Done.')} {n} {t('条', 'bookmarks embedded')}.")
     return 0
 
 
@@ -119,7 +124,7 @@ def cmd_search(args):
         author=args.author, before=args.before, after=args.after, has_media=args.has_media)
     print(note or note2 or "")
     if not hits:
-        print("(无结果)")
+        print(t("(无结果)", "(no results)"))
         return 0
     from . import textproc
     for h in hits:
@@ -141,53 +146,67 @@ def cmd_serve(args):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="xbm", description="X.com 书签本地管理器")
+    ap = argparse.ArgumentParser(prog="xbm", description=t("X.com 书签本地管理器", "X.com bookmark manager"))
     ap.add_argument("--version", action="version", version=__version__)
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--db", default=None, help="SQLite 路径(默认 ./xbm.db,或环境变量 XBM_DB)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("sync", help="同步书签(主数据源;twscrape 后端优先)", parents=[common])
-    p.add_argument("--login", action="store_true", help="交互向导:打开 x.com 引导复制 Cookie 一次")
-    p.add_argument("--cookie", help='直接传整串 Cookie("auth_token=...; ct0=...; ...")或 Cookie-Editor JSON')
-    p.add_argument("--auth-token", help="单独传 auth_token(需配合 --ct0)")
-    p.add_argument("--ct0", help="单独传 ct0(需配合 --auth-token)")
-    p.add_argument("--init", action="store_true", help="生成同步配置模板(raw 后端需手填 endpoint)")
+    p = sub.add_parser("sync", help=t("同步书签(主数据源;twscrape 后端优先)",
+                                 "Sync bookmarks (primary source; twscrape backend preferred)"), parents=[common])
+    p.add_argument("--login", action="store_true", help=t("交互向导:打开 x.com 引导复制 Cookie 一次",
+                                                   "Interactive wizard: opens x.com to paste cookies once"))
+    p.add_argument("--cookie", help=t('直接传整串 Cookie 或 Cookie-Editor JSON',
+                                   'Raw cookie string or Cookie-Editor JSON'))
+    p.add_argument("--auth-token", help=t("单独传 auth_token(需配合 --ct0)", "auth_token alone (pair with --ct0)"))
+    p.add_argument("--ct0", help=t("单独传 ct0(需配合 --auth-token)", "ct0 alone (pair with --auth-token)"))
+    p.add_argument("--init", action="store_true", help=t("生成同步配置模板(raw 后端需手填 endpoint)",
+                                                  "Generate sync config template (raw backend needs endpoint)"))
     p.add_argument("--backend", choices=["auto", "twscrape", "raw"], default="auto",
-                   help="auto=装了 twscrape 就用它,否则 raw GraphQL")
-    p.add_argument("--full", action="store_true", help="翻到底(首次全量,建议分批)")
-    p.add_argument("--max-pages", type=int, default=50, help="raw 后端单次页数上限")
-    p.add_argument("--limit", type=int, default=500, help="twscrape 后端单次条数上限")
+                   help=t("auto=装了 twscrape 就用它,否则 raw GraphQL",
+                          "auto=use twscrape if installed, else raw GraphQL"))
+    p.add_argument("--full", action="store_true", help=t("翻到底(首次全量,建议分批)",
+                                                  "Walk to the end (first full sync; run in batches)"))
+    p.add_argument("--max-pages", type=int, default=50, help=t("raw 后端单次页数上限", "raw backend page cap per run"))
+    p.add_argument("--limit", type=int, default=500, help=t("twscrape 后端单次条数上限", "twscrape backend item cap per run"))
     p.set_defaults(fn=cmd_sync)
 
-    p = sub.add_parser("import", help="导入官方存档 ZIP/目录(后备路径)", parents=[common])
-    p.add_argument("--archive", required=True)
+    p = sub.add_parser("import", help=t("导入官方存档 ZIP/目录(后备路径)",
+                                   "Import official archive ZIP/dir (fallback path)"), parents=[common])
+    p.add_argument("--archive", required=True, help=t("存档路径", "archive path"))
     p.set_defaults(fn=cmd_import)
 
-    p = sub.add_parser("report", help="数据质量报告", parents=[common])
+    p = sub.add_parser("report", help=t("数据质量报告", "Data quality report"), parents=[common])
     p.set_defaults(fn=cmd_report)
 
-    p = sub.add_parser("embed", help="批量嵌入(默认进程内 litert_lm;可选后端)", parents=[common])
-    p.add_argument("--base", default=None, help="OpenAI 兼容嵌入服务地址(不填则用本地模型)")
+    p = sub.add_parser("embed", help=t("批量嵌入(默认进程内 litert_lm;可选后端)",
+                                   "Bulk embed (in-process litert_lm by default; backend optional)"), parents=[common])
+    p.add_argument("--base", default=None, help=t("OpenAI 兼容嵌入服务地址(不填则用本地模型)",
+                                            "OpenAI-compatible embedding endpoint (blank = local model)"))
     p.add_argument("--backend", choices=["cpu", "gpu"], default="cpu",
-                   help="本地模型后端:cpu ~9条/s,gpu(WebGPU) ~15条/s")
+                   help=t("本地模型后端:cpu ~9条/s,gpu(WebGPU) ~15条/s",
+                          "local backend: cpu ~9/s, gpu (WebGPU) ~15/s"))
     p.set_defaults(fn=cmd_embed)
 
-    p = sub.add_parser("search", help="混合检索", parents=[common])
+    p = sub.add_parser("search", help=t("混合检索", "Hybrid search"), parents=[common])
     p.add_argument("query")
     p.add_argument("--mode", choices=["auto", "fts", "vector"], default="auto")
-    p.add_argument("-k", "--top", type=int, default=20)
-    p.add_argument("--author")
-    p.add_argument("--before", help="如 2025-01-01")
-    p.add_argument("--after")
-    p.add_argument("--has-media", action="store_true")
-    p.add_argument("--base", default=None, help="嵌入服务地址(查询向量用)")
+    p.add_argument("-k", "--top", type=int, default=20, help=t("返回条数", "top-k results"))
+    p.add_argument("--author", help=t("作者 handle 过滤", "author handle filter"))
+    p.add_argument("--before", help=t("如 2025-01-01", "e.g. 2025-01-01"))
+    p.add_argument("--after", help=t("如 2025-01-01", "e.g. 2025-01-01"))
+    p.add_argument("--has-media", action="store_true", help=t("仅含媒体", "media only"))
+    p.add_argument("--base", default=None, help=t("嵌入服务地址(查询向量用)", "embedding endpoint (for query vector)"))
     p.set_defaults(fn=cmd_search)
 
-    p = sub.add_parser("serve", help="本地 Web 服务(检索 UI + 浏览器 WebGPU 嵌入)", parents=[common])
-    p.add_argument("--port", type=int, default=8788)
-    p.add_argument("--model", default=None, help=".litertlm 模型路径")
-    p.add_argument("--web", default=None, help="前端构建目录(默认 web/dist)")
+    p = sub.add_parser("serve", help=t("本地 Web 服务(检索 UI + 浏览器 WebGPU 嵌入)",
+                                   "Local web UI (search + in-browser WebGPU embedding)"), parents=[common])
+    p.add_argument("--port", type=int, default=8788, help=t("端口", "port"))
+    p.add_argument("--host", default=None,
+                   help=t("监听地址(默认 127.0.0.1;0.0.0.0 对局域网开放)",
+                          "bind address (default 127.0.0.1; 0.0.0.0 for LAN)"))
+    p.add_argument("--model", default=None, help=t(".litertlm 模型路径", ".litertlm model path"))
+    p.add_argument("--web", default=None, help=t("前端构建目录(默认 web/dist)", "web build dir (default web/dist)"))
     p.set_defaults(fn=cmd_serve)
 
     args = ap.parse_args(argv)

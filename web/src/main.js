@@ -1,3 +1,4 @@
+import { t, setLang, lang } from './i18n.js';
 // xbm 前端:浏览器 WebGPU 嵌入(@litert-lm/core)+ 混合检索 UI。
 // 用法对应官方示例 js/apps/embedding_search:
 //   getOrLoadGlobalLiteRtLm('./wasm') → EmbeddingEngine.create({model: stream, backend: Backend.GPU})
@@ -30,7 +31,33 @@ function trackProgress(stream, total, cb) {
   });
 }
 
+
+function applyI18n() {
+  document.title = t('app.title');
+  document.getElementById('app-title').textContent = t('app.title');
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    // 保留子元素(如类目标题里的小注释),只翻译第一个文本节点
+    const first = el.firstChild;
+    if (first && first.nodeType === Node.TEXT_NODE) first.textContent = t(el.dataset.i18n);
+    else if (!first) el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  document.getElementById('lang-toggle').textContent = lang() === 'zh' ? 'EN' : '中文';
+}
+
+document.getElementById('lang-toggle').addEventListener('click', () => {
+  setLang(lang() === 'zh' ? 'en' : 'zh');
+  applyI18n();
+  if (!$('catview').hidden) loadCategories();
+  if (!$('mapview').hidden) loadMapView(true);
+  if (!$('timelineview').hidden) loadTimeline();
+  if (!$('threadsview').hidden) loadThreads();
+});
+
 async function boot() {
+  applyI18n();
   try {
     cfg = await (await fetch('/api/config')).json();
   } catch (e) {
@@ -217,11 +244,11 @@ function renderCards(hits, el, opts = {}) {
         <b>@${h.author_handle || '?'}</b>
         <span>${date}</span>
         <span class="spacer"></span>
-        <a class="src" href="${srcUrl}" target="_blank" rel="noreferrer">原推链接 ↗</a>
-        <button class="del" data-id="${h.tweet_id}" title="从本地库删除">删除</button>
+        <a class="src" href="${srcUrl}" target="_blank" rel="noreferrer">${t('card.src')}</a>
+        <button class="del" data-id="${h.tweet_id}" title="local delete">${t('card.del')}</button>
       </div>
       <div class="text${long ? ' clamp' : ''}"></div>
-      ${long ? '<button class="more">查看更多</button>' : ''}
+      ${long ? `<button class="more">${t('card.more')}</button>` : ''}
       <div class="thumbs">${media}</div>
       <div class="links">${urls}</div>`;
     const textNode = div.querySelector('.text');
@@ -229,7 +256,7 @@ function renderCards(hits, el, opts = {}) {
     const moreBtn = div.querySelector('.more');
     if (moreBtn) moreBtn.addEventListener('click', () => {
       const clamped = textNode.classList.toggle('clamp');
-      moreBtn.textContent = clamped ? '查看更多' : '收起';
+      moreBtn.textContent = clamped ? t('card.more') : t('card.less');
     });
     div.querySelector('.del').addEventListener('click', () => deleteBookmark(h.tweet_id, div));
     el.appendChild(div);
@@ -244,7 +271,7 @@ function renderNote(msg, el) {
 }
 
 async function deleteBookmark(tweetId, cardEl) {
-  if (!confirm('从本地库删除这条书签?(不影响 X.com 端)')) return;
+  if (!confirm(t('del.confirm'))) return;
   try {
     const r = await (await fetch('/api/delete', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -351,16 +378,16 @@ async function loadCategories() {
 
     renderChipRow('cat-chips', (cats.counts || []).map(c => ({
       key: c.name, label: `${c.name}`, n: c.count, dim: 'category',
-    })), '尚未生成——点「刷新类目分配」。');
+    })), t('cat.empty'));
 
     const sets = clusters.clusters || {};
     renderChipRow('kw-chips', (sets.keyword || []).slice(0, 60).map(c => ({
       key: c.cluster_id, label: c.name, n: c.size, dim: 'kw',
-    })), '尚未生成——工具栏选「关键词聚类」点「生成聚类」。',
+    })), t('kw.empty'),
       (sets.keyword || []).length);
     renderChipRow('llm-chips', (sets.llm || []).slice(0, 60).map(c => ({
       key: c.cluster_id, label: c.name, n: c.size, dim: 'llm',
-    })), '尚未生成——工具栏选「LLM 聚类」点「生成聚类」。',
+    })), t('llm.empty'),
       (sets.llm || []).length);
 
     if (clusters.options) {  // 预填已保存的 LLM 配置
@@ -636,7 +663,7 @@ async function loadMapView(force = false) {
       }
       mapData = r;
       mapT = { scale: 1, tx: 0, ty: 0 };
-      note.textContent = `${r.points.length} 点 · ${r.job && r.job.last_result || ''} · 滚轮缩放,拖拽平移,点击看内容`;
+      note.textContent = `${r.points.length} · ${r.job && r.job.last_result || ''} · ${t('map.zoomHint')}`;
     }
     renderLegend(mapData);
     drawMap();
@@ -717,7 +744,7 @@ function groupLabel(g) {
     card.innerHTML = `<span class="close">✕ 关闭</span>
       <div class="muted">${groupLabel(p.g)}</div>
       <div class="text"></div>
-      <a href="https://x.com/i/status/${p.id}" target="_blank" rel="noreferrer">原推链接 ↗</a>`;
+      <a href="https://x.com/i/status/${p.id}" target="_blank" rel="noreferrer">${t('card.src')}</a>`;
     card.querySelector('.text').textContent = p.t + '…';
     card.querySelector('.close').onclick = () => { card.hidden = true; };
   });
@@ -808,10 +835,10 @@ $('view-timeline').addEventListener('click', () => { switchView('timeline'); });
 // ---------------- 线索(兴趣账本:中断/持续/新芽/脉冲) ----------------
 
 const SEC_META = {
-  dormant: ['⚠ 中断线索', '曾经投入、已沉寂 —— 最值得回看与重启的方向', true],
-  persistent: ['✓ 持续线索', '长期反复出现的系统性兴趣(知识资产)', false],
-  emerging: ['🌱 新芽', '近两个月新出现的方向,观察是否值得投入', false],
-  pulse: ['⚡ 热点脉冲', '短促爆发(多为推荐引擎热点),浏览过即可', false],
+  dormant: ['sec.dormant', 'sec.dormant.sub', true],
+  persistent: ['sec.persistent', 'sec.persistent.sub', false],
+  emerging: ['sec.emerging', 'sec.emerging.sub', false],
+  pulse: ['sec.pulse', 'sec.pulse.sub', false],
 };
 let threadsPollTimer = null;
 
@@ -850,7 +877,8 @@ function renderThreads(r) {
   const cards = r.cards || {};
   for (const cls of ['dormant', 'persistent', 'emerging', 'pulse']) {
     const list = (r.threads || {})[cls] || [];
-    const [title, sub, warn] = SEC_META[cls];
+    const [titleKey, subKey, warn] = SEC_META[cls];
+    const title = t(titleKey), sub = t(subKey);
     const sec = document.createElement('div');
     sec.innerHTML = `<div class="thread-sec"><b>${title}</b>(${list.length}) <span class="muted">${sub}</span></div>`;
     box.appendChild(sec);

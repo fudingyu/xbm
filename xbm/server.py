@@ -8,10 +8,12 @@
 
 import json
 import mimetypes
+import os
 import threading
 import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
 from . import category as category_mod
 from . import cluster as cluster_mod
@@ -372,10 +374,36 @@ def _llm_test(base: str, model: str, style: str) -> dict:
 class Handler(BaseHTTPRequestHandler):
     server_version = "xbm/0.1"
 
+    # ---- CORS(分离部署:静态前端托管在 GitHub Pages 等,连用户本机后端) ----
+    # 安全默认关闭;设 XBM_CORS_ORIGINS=https://a,https://b 后仅白名单可跨域;
+    # localhost/127.0.0.1(任意端口)视为本机页面,始终放行。
+    @staticmethod
+    def _cors_allow(req_origin: str | None) -> str | None:
+        if not req_origin:
+            return None
+        allowed = [o.strip() for o in
+                   os.environ.get("XBM_CORS_ORIGINS", "").split(",") if o.strip()]
+        if req_origin in allowed:
+            return req_origin
+        try:
+            if (urlparse(req_origin).hostname or "") in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+                return req_origin
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+    def _cors_headers(self) -> None:
+        allow = self._cors_allow(self.headers.get("Origin"))
+        if allow:
+            self.send_header("Access-Control-Allow-Origin", allow)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
     def _json(self, code: int, obj):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self._cors_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -396,6 +424,11 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
 
     # ---------------- GET ----------------
+    def do_OPTIONS(self):  # 跨域预检(仅白名单/本机来源会拿到 CORS 头)
+        self.send_response(204)
+        self._cors_headers()
+        self.end_headers()
+
     def do_GET(self):
         path = self.path.split("?")[0]
         conn = _conn(self.server)
@@ -680,15 +713,19 @@ class Handler(BaseHTTPRequestHandler):
         print("[%s] %s" % (__import__("time").strftime("%H:%M:%S"), fmt % args))
 
 
-def serve(db_file=None, port=8788, model_path=None, web_dir=None):
+def serve(db_file=None, port=8788, model_path=None, web_dir=None, host=None):
     import os
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    # 监听地址默认仅本机;XBM_HOST=0.0.0.0 或 --host 才对外(局域网远程前端用)
+    bind_host = host or os.environ.get("XBM_HOST", "127.0.0.1")
+    httpd = ThreadingHTTPServer((bind_host, port), Handler)
     httpd.db_file = str(db_file or config.db_path())
     httpd.web_dir = Path(web_dir or os.environ.get("XBM_WEB_DIR") or DEFAULT_WEB)
     resolved = model_path or os.environ.get("XBM_MODEL_PATH") or config.discover_model()
     httpd.model_path = Path(resolved) if resolved else Path("models/README-PLACEHOLDER")
-    print(f"xbm 服务: http://127.0.0.1:{port}")
+    print(f"xbm 服务: http://{bind_host}:{port}")
     print(f"  数据库: {httpd.db_file}")
     print(f"  前端目录: {httpd.web_dir}(需先在 web/ 下 npm install && npm run build)")
     print(f"  模型: {httpd.model_path}")
+    cors = os.environ.get("XBM_CORS_ORIGINS", "")
+    print(f"  CORS: {'白名单 ' + cors if cors else '默认(本机来源放行;分离部署见 README「部署」)'}")
     httpd.serve_forever()
