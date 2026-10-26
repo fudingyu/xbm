@@ -5,6 +5,7 @@ import sqlite3
 from collections import Counter
 
 from . import embed, textproc
+from .i18n import t
 
 
 def _pct(n: int, total: int) -> str:
