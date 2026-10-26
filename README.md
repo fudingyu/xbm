@@ -16,7 +16,7 @@ x.com 书签 ──(增量同步,cookie)──> SQLite(推文 + FTS5 全文索�
 
 ## 两个版本
 
-| | 服务版(`web/`) | 静态版(`webapp/`) |
+| | 服务版(`web/`) | 静态版(`webapp/`,**实验性 WIP**) |
 |---|---|---|
 | 运行方式 | `python -m xbm serve` 起本地后端 | 纯前端,双击/静态托管即可 |
 | 数据存储 | 本机 SQLite(`xbm.db`) | 浏览器 OPFS(SQLite-WASM,持久) |

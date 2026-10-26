@@ -184,7 +184,7 @@ xbm serve(用户本机:SQLite 数据库 + .litertlm 模型)
 前端侧约定:分离部署时 API 基址指向 `http://127.0.0.1:8788`(构建期 `VITE_API_BASE`
 或页面内配置);`/model` 由后端流式下发(约 160MB,首次加载后浏览器缓存)。
 
-### 静态版(webapp/,纯前端)
+### 静态版(webapp/,纯前端 —— 实验性 WIP,数据层仍在开发中)
 
 `webapp/` 是独立于后端的**纯静态版本**:数据存浏览器 OPFS(SQLite-WASM),模型在
 浏览器内加载(WebGPU),内置书签收集器(bookmarklet)——浏览 x.com 时一键收藏。

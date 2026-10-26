@@ -143,7 +143,7 @@ stop being "saved and never opened" and become an asset that surfaces its own st
 
 ## Two editions
 
-| | Server edition (`web/`) | Static edition (`webapp/`) |
+| | Server edition (`web/`) | Static edition (`webapp/`, **experimental WIP**) |
 |---|---|---|
 | How it runs | `python -m xbm serve` starts a local backend | pure frontend — open the page or host it statically |
 | Data store | local SQLite (`xbm.db`) | browser OPFS (SQLite-WASM, persistent) |
