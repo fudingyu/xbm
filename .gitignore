@@ -1,0 +1,21 @@
+# 个人数据:绝不入库
+*.db
+*.db-wal
+*.db-shm
+accounts.db*
+*.log
+demo/
+models/*.litertlm
+
+# 凭据(~/.xbm 下,正常不会出现在仓库;双保险)
+x-sync.json
+llm.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node
+node_modules/
+web/dist/

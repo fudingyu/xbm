@@ -1,0 +1,15 @@
+# 基础依赖(检索核心)
+numpy
+jieba
+
+# 本地嵌入:litert-lm(EmbeddingGemma .litertlm 进程内推理)
+litert-lm
+
+# 同步(推荐):twscrape 社区库,自动处理 x.com 接口轮换与限速(curl_cffi 指纹伪装)
+twscrape[curl]
+
+# 地图(UMAP 降维;未装时自动退化为 numpy-PCA 兜底)
+umap-learn
+
+# 聚类增强(可选):HDBSCAN;未装时用内置引领聚类兜底
+hdbscan

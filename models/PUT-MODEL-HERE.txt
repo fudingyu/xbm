@@ -1,0 +1,4 @@
+把 EmbeddingGemma 的 .litertlm 模型文件放在本目录(自动发现第一个 *.litertlm)。
+例如: embeddinggemma-2-text-270m.litertlm (~160MB)
+下载: HuggingFace litert-community 等处发布
+或用环境变量 XBM_MODEL_PATH 指向任意路径。

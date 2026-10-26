@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>xbm · X 书签管理器</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>xbm · X 书签管理器</h1>
+    <div id="status" class="status">初始化…</div>
+    <nav class="views">
+      <button id="view-search" class="tab active">搜索</button>
+      <button id="view-cat" class="tab">分类浏览</button>
+      <button id="view-map" class="tab">地图</button>
+      <button id="view-timeline" class="tab">时间脉络</button>
+      <button id="view-threads" class="tab">线索</button>
+    </nav>
+  </header>
+
+  <section id="searchview">
+    <div class="searchbar">
+      <input id="q" type="text" placeholder="语义或关键词搜索,回车执行(例如:大模型推理优化 / 红叶攻略)" />
+      <select id="mode">
+        <option value="auto" selected>混合</option>
+        <option value="vector">语义</option>
+        <option value="fts">关键词</option>
+      </select>
+      <button id="go">搜索</button>
+    </div>
+
+    <div class="filters">
+      <input id="f-author" type="text" placeholder="作者 handle" />
+      <label>从 <input id="f-after" type="date" /></label>
+      <label>到 <input id="f-before" type="date" /></label>
+      <label><input id="f-media" type="checkbox" /> 仅含媒体</label>
+      <button id="sync" class="ghost">增量同步书签</button>
+      <span id="sync-note"></span>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="embed-ctl">
+        <label>嵌入后端
+          <select id="embed-backend">
+            <option value="gpu" selected>GPU(WebGPU,约 15 条/秒)</option>
+            <option value="cpu">CPU(约 9 条/秒)</option>
+          </select>
+        </label>
+        <button id="btn-embed" class="ghost">批量嵌入</button>
+        <span id="embed-note" class="muted"></span>
+      </div>
+      <div id="embed-bar" class="bar"><div id="embed-fill"></div></div>
+      <div id="embed-text" class="muted">嵌入进度 —</div>
+      <div id="backfill-note" class="muted"></div>
+    </div>
+
+    <main id="results">
+      <p class="muted">输入关键词开始搜索。首次使用:书签同步后,浏览器会用 WebGPU 自动完成语义嵌入。</p>
+    </main>
+  </section>
+
+  <section id="catview" hidden>
+    <div class="cat-toolbar">
+      <select id="cluster-set" title="对哪套分区执行">
+        <option value="keyword" selected>关键词聚类</option>
+        <option value="llm">LLM 聚类</option>
+      </select>
+      <select id="cluster-granularity" title="簇的粗细">
+        <option value="vfine">粒度:很细</option>
+        <option value="fine">粒度:细</option>
+        <option value="medium" selected>粒度:适中</option>
+        <option value="coarse">粒度:粗</option>
+      </select>
+      <label class="muted"><input id="cluster-recluster" type="checkbox" checked />重新聚类</label>
+      <span id="llm-fields" hidden>
+        <select id="llm-style" title="接口风格">
+          <option value="chat" selected>OpenAI 兼容</option>
+          <option value="systemone">SystemOne 决策</option>
+        </select>
+        <input id="llm-base" type="text" placeholder="http://127.0.0.1:8080/v1" />
+        <input id="llm-model" type="text" placeholder="模型名" />
+        <button id="btn-llm-test" class="ghost">测试连接</button>
+        <span id="llm-test-result" class="muted"></span>
+      </span>
+      <button id="btn-cluster">生成聚类</button>
+      <button id="btn-classify" class="ghost">刷新类目分配</button>
+      <span id="cat-note" class="muted"></span>
+    </div>
+
+    <h3>类目 <span class="muted">(零样本语义)</span></h3>
+    <div id="cat-chips" class="chips"></div>
+    <h3>关键词聚类</h3>
+    <div id="kw-chips" class="chips"></div>
+    <h3>LLM 聚类</h3>
+    <div id="llm-chips" class="chips"></div>
+    <p class="muted">三个维度可任意组合筛选(交集):点选高亮,再点一次取消。</p>
+    <div id="cat-header"></div>
+    <main id="cat-results"></main>
+  </section>
+
+  <section id="mapview" hidden>
+    <div class="cat-toolbar">
+      <select id="map-color">
+        <option value="category" selected>着色:类目</option>
+        <option value="kw">着色:关键词聚类</option>
+        <option value="llm">着色:LLM 聚类</option>
+      </select>
+      <button id="btn-map-gen" class="ghost">重新生成地图</button>
+      <span id="map-note" class="muted"></span>
+    </div>
+    <div id="map-wrap">
+      <canvas id="map-canvas"></canvas>
+      <div id="map-tip" hidden></div>
+      <div id="map-card" hidden></div>
+    </div>
+    <div id="map-legend" class="chips"></div>
+  </section>
+
+  <section id="timelineview" hidden>
+    <div class="cat-toolbar">
+      <select id="timeline-unit">
+        <option value="month" selected>按月</option>
+        <option value="quarter">按季</option>
+      </select>
+      <select id="timeline-window">
+        <option value="all" selected>全部时间</option>
+        <option value="24">近 24 个月</option>
+        <option value="12">近 12 个月</option>
+      </select>
+      <button id="btn-timeline">生成 / 重新生成</button>
+      <span id="timeline-note" class="muted"></span>
+    </div>
+    <p class="muted">时间口径:优先书签时间,缺失时用推文发布时间(早年老帖会出现在历史期)。</p>
+    <div id="timeline-narrative" class="narrative"></div>
+    <details id="timeline-raw">
+      <summary class="muted">各期主题统计(原始数据)</summary>
+      <div id="timeline-digest"></div>
+    </details>
+  </section>
+
+  <section id="threadsview" hidden>
+    <div class="cat-toolbar">
+      <span class="muted">双轨视角:算法热点会周期性起伏,但「中断线索」是你曾经投入、
+      被断供后遗忘的方向 —— 定期回看,别被推荐算法带着走。</span>
+      <button id="btn-thread-cards" class="ghost">生成线索解读(LLM)</button>
+      <span id="threads-note" class="muted"></span>
+    </div>
+    <div id="threads-body"></div>
+  </section>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
