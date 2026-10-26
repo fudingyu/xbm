@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title id="doc-title">xbm — Interactive Demo (fictional data)</title>
+<style>
+:root {
+  --bg: #0f1115; --panel: #171a21; --line: #262b36;
+  --fg: #e6e9ef; --muted: #8b93a3; --accent: #4f8cff; --good: #3fb96f;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+header { display: flex; align-items: baseline; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+h1 { font-size: 17px; margin: 0; }
+.status { color: var(--muted); font-size: 12px; }
+.views { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.views .tab { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 5px 14px; }
+.views .tab.active { color: var(--fg); border-color: var(--accent); background: #1b2433; }
+button { padding: 8px 16px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; cursor: pointer; font-size: 13px; }
+button.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.searchbar { display: flex; gap: 8px; padding: 14px 20px 4px; }
+#q { flex: 1; padding: 9px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); font-size: 14px; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 20px; color: var(--muted); font-size: 12px; }
+.filters input[type=text] { width: 130px; padding: 5px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--fg); }
+.progress-wrap { padding: 4px 20px 10px; }
+.bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+#embed-fill { height: 100%; width: 100%; background: var(--good); }
+.muted { color: var(--muted); font-size: 12px; }
+main { padding: 6px 20px 40px; }
+.hit { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; background: var(--panel); }
+.hit .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.hit .badges { display: flex; gap: 6px; }
+.badge { padding: 1px 8px; border-radius: 10px; font-size: 11px; background: #22303f; color: var(--accent); }
+.badge.fts { color: var(--good); }
+.hit .text { margin: 6px 0 4px; white-space: pre-wrap; word-break: break-word; }
+.hit .text.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.hit .links a { color: var(--muted); font-size: 12px; margin-right: 10px; text-decoration: none; word-break: break-all; }
+.hit .meta .spacer { flex: 1; }
+.hit .meta .src { color: var(--accent); font-size: 12px; text-decoration: none; font-weight: 600; }
+.hit .del { padding: 2px 10px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.hit .more { margin: 2px 0 4px; padding: 3px 12px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+#catview, #mapview, #timelineview, #threadsview { padding: 10px 20px 40px; }
+#catview h3, #timelineview h3 { font-size: 14px; margin: 14px 0 8px; }
+.cat-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.chip { background: var(--panel); border: 1px solid var(--line); color: var(--fg); border-radius: 16px; padding: 5px 14px; font-size: 13px; cursor: pointer; }
+.chip.on { border-color: var(--accent); background: #1b2433; box-shadow: 0 0 0 1px var(--accent) inset; }
+.chip .n { color: var(--accent); font-weight: 600; margin-left: 4px; }
+.chip i { font-style: normal; color: var(--muted); font-size: 10px; margin-left: 4px; }
+.thread-sec { margin: 14px 0 6px; font-size: 14px; }
+.thread-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+.thread-card.dormant { border-color: #8a5a2a; background: #1d1810; }
+.thread-card .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.thread-card .head b { font-size: 14px; }
+.thread-card .spark { font-family: Consolas, monospace; color: var(--accent); letter-spacing: 1px; }
+.thread-card .stats { color: var(--muted); font-size: 12px; }
+.thread-card .stats .warn { color: #e5a13d; font-weight: 600; }
+.thread-card .cardllm { margin-top: 6px; font-size: 13px; border-top: 1px dashed var(--line); padding-top: 6px; }
+.thread-card .cardllm .lbl { color: var(--good); font-size: 11px; margin-right: 4px; }
+.narrative { white-space: pre-wrap; line-height: 1.9; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin: 10px 0; }
+#map-wrap { position: relative; height: 62vh; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+#map-canvas { width: 100%; height: 100%; display: block; }
+#map-card { position: absolute; right: 12px; top: 12px; width: 300px; background: rgba(16,19,26,.97); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; }
+#map-card .text { white-space: pre-wrap; margin: 6px 0; }
+#map-card a { color: var(--accent); }
+#map-card .close { float: right; cursor: pointer; color: var(--muted); }
+#map-legend { padding: 10px 20px; }
+.demo-note { margin: 10px 20px; padding: 8px 14px; border: 1px dashed #8a5a2a; border-radius: 8px; color: #e5a13d; font-size: 12px; }
+.hit .thumbs img { max-height: 140px; border-radius: 8px; margin: 6px 8px 0 0; }
+</style>
+</head>
+<body>
+<script>
+window.__errs = [];
+window.addEventListener('error', e => window.__errs.push(e.message + ' @' + e.filename.split('/').pop() + ':' + e.lineno));
+window.addEventListener('unhandledrejection', e => window.__errs.push('rej: ' + e.reason));
+</script>
+
+<header>
+  <h1>xbm · X Bookmark Manager <span class="muted" style="font-size:11px">DEMO — fictional data</span></h1>
+  <div class="status">Model ready (loaded in 1.3s) · 12,000 bookmarks · 12,000 embedded (100%)</div>
+  <nav class="views">
+    <button class="tab active" data-v="search">Search</button>
+    <button class="tab" data-v="browse">Browse</button>
+    <button class="tab" data-v="map">Map</button>
+    <button class="tab" data-v="timeline">Timeline</button>
+    <button class="tab" data-v="threads">Threads</button>
+  </nav>
+</header>
+
+<!-- ================= SEARCH ================= -->
+<section id="searchview">
+  <div class="searchbar">
+    <input id="q" value="inference optimization" readonly>
+    <select><option>Hybrid</option></select>
+    <button>Search</button>
+  </div>
+  <div class="filters">
+    <input type="text" placeholder="author handle">
+    <label>From <input type="date"></label>
+    <label>To <input type="date"></label>
+    <label><input type="checkbox"> media only</label>
+    <button class="ghost">Incremental sync</button>
+  </div>
+  <div class="progress-wrap">
+    <div class="bar"><div id="embed-fill"></div></div>
+    <div class="muted">Embedding progress 12000/12000 (100%)</div>
+    <div class="muted">Bookmarks 12000 · sync requests sent 2140 · idle / pulling</div>
+  </div>
+  <main id="results"></main>
+</section>
+
+<!-- ================= BROWSE ================= -->
+<section id="browseview" hidden>
+  <div class="cat-toolbar">
+    <select><option>Keyword clustering</option><option>LLM clustering</option></select>
+    <select><option>Granularity: medium</option></select>
+    <label class="muted"><input type="checkbox" checked> Re-cluster</label>
+    <button>Generate clusters</button>
+    <button class="ghost">Generate / refresh categories</button>
+  </div>
+  <h3>Categories <span class="muted">(zero-shot semantic)</span></h3>
+  <div class="chips" id="cat-chips"></div>
+  <h3>Keyword clusters</h3>
+  <div class="chips" id="kw-chips"></div>
+  <h3>LLM clusters</h3>
+  <div class="chips" id="llm-chips"></div>
+  <p class="muted">Combine any dimensions (AND): click to select, click again to clear.</p>
+  <div id="cat-header"></div>
+  <main id="browse-results"></main>
+</section>
+
+<!-- ================= MAP ================= -->
+<section id="mapview" hidden>
+  <div class="cat-toolbar">
+    <select><option>Color: categories</option></select>
+    <button class="ghost">Regenerate map</button>
+    <span class="muted">12000 points · UMAP 34s · wheel = zoom, drag = pan, click = details</span>
+  </div>
+  <div id="map-wrap">
+    <canvas id="map-canvas"></canvas>
+    <div id="map-card">
+      <span class="close">✕ close</span>
+      <div class="muted">AI & LLM</div>
+      <div class="text">llama.cpp just landed MTP support — speculative decoding doubled my local throughput. KV-cache quantization notes inside…</div>
+      <a href="#" onclick="return false">Open on X ↗</a>
+    </div>
+  </div>
+  <div id="map-legend" class="chips"></div>
+</section>
+
+<!-- ================= TIMELINE ================= -->
+<section id="timelineview" hidden>
+  <div class="cat-toolbar">
+    <select><option>Monthly</option><option>Quarterly</option></select>
+    <select><option>All time</option><option>Last 24 months</option></select>
+    <button>Generate / regenerate</button>
+    <span class="muted">24 periods, narrative generated</span>
+  </div>
+  <div class="narrative" id="tl-narrative"></div>
+  <details open>
+    <summary class="muted">Per-period topic stats (raw data)</summary>
+    <div id="tl-digest"></div>
+  </details>
+</section>
+
+<!-- ================= THREADS ================= -->
+<section id="threadsview" hidden>
+  <div class="cat-toolbar">
+    <span class="muted">Dual-track view: hype pulses come and go, but dormant threads are directions you once invested in and the algorithm stopped feeding — review them regularly.</span>
+    <button class="ghost">Generate thread cards (LLM)</button>
+  </div>
+  <div id="threads-body"></div>
+</section>
+
+<script>
+// ---------- view switching ----------
+const VIEWS = ['search', 'browse', 'map', 'timeline', 'threads'];
+function switchView(name) {
+  document.querySelectorAll('.views .tab').forEach(x => x.classList.toggle('active', x.dataset.v === name));
+  VIEWS.forEach(v => document.getElementById(v + 'view').hidden = v !== name);
+  if (name === 'map') drawMap(false);
+}
+document.querySelectorAll('.views .tab').forEach(b =>
+  b.addEventListener('click', () => switchView(b.dataset.v)));
+// deep link: demo.html?view=map
+window.addEventListener('resize', () => drawMap(false));
+window.addEventListener('load', () => drawMap(false));
+const want = new URLSearchParams(location.search).get('view');
+if (want && VIEWS.includes(want)) switchView(want);
+if (window.__errs.length) document.getElementById('doc-title').textContent = 'ERR: ' + window.__errs.join(' | ');
+
+// ---------- fictional data ----------
+const CATS = [
+  ['AI & LLM', 4006], ['Programming', 1639], ['Dev Tools', 1226], ['Design', 861],
+  ['Hardware', 717], ['Business', 482], ['News', 404], ['Science', 425],
+  ['Life', 343], ['Travel', 117], ['Health', 272], ['Other', 508],
+];
+const KW = [
+  ['llama.cpp · MTP · kv-cache', 9], ['ollama · quantization · gguf', 23],
+  ['umap · embedding-viz', 11], ['cli · terminal-ai', 57],
+  ['prompt · patterns · evals', 31], ['cuda · kernels · leet', 18],
+];
+const LLM = [
+  ['Knowledge explainers', 2832], ['AI dev tools', 1534], ['AI monetization', 1385],
+  ['AI video generation', 667], ['Local inference acceleration', 553], ['AI coding tools', 482],
+];
+const RESULTS = [
+  { sim: 'semantic 81%', who: '@gpu_guru', date: '2026-10-11',
+    text: 'llama.cpp just merged MTP (multi-token prediction) — my local 8B model went from 42 to 78 tok/s on an iGPU.\nSetup notes: enable --mtp with the draft-model path, keep kv-cache q8_0, and pin the draft to the same NUMA node…',
+    links: ['blog.example.com'], more: true },
+  { fts: true, who: '@cuda_daily', date: '2026-04-19',
+    text: 'LeetCUDA — 200+ exercises going from naive matmul to HGEMM hitting 98% of cuBLAS. If you want to actually understand what "inference optimization" means under the hood, start here.',
+    links: ['github.com'] },
+  { sim: 'semantic 76%', who: '@ml_practical', date: '2026-05-06',
+    text: 'Google shipped a 3x speedup path for Gemma: MPT drafters, one draft model per target. Roughly doubles useful throughput for local inference — worth benchmarking before your next deploy.',
+    links: ['research.example.com'] },
+  { sim: 'semantic 64%', who: '@oss_weekly', date: '2025-11-02',
+    text: 'Weekly digest: quantization bake-off (Q4_K_M vs Q5 vs IQ4), llama-server concurrency flags, and why your first token latency is dominated by prompt processing.',
+    links: ['newsletter.example.com'] },
+];
+const THREADS = {
+  dormant: [
+    { name: 'llama.cpp · MTP · kv-cache', n: 9, am: 5, span: '2025-06 ~ 2026-01', silent: 9,
+      spark: '▆▆▅▂▆▂·······',
+      about: 'Everything collected around llama-server tuning: MTP drafters, KV-cache quantization, concurrency flags — the hands-on side of local inference speed.',
+      next: 'Fragments only so far. Benchmark one MTP + q8_0 kv-cache combo on your own hardware and write down the tok/s matrix.' },
+    { name: 'prompt · patterns · evals', n: 31, am: 4, span: '2025-02 ~ 2025-11', silent: 9,
+      spark: '▆▆▃···········',
+      about: 'Prompt-engineering practice: pattern libraries, eval harnesses, regression checks for system prompts.',
+      next: 'Missing systematic coverage. Group saved posts by use case (coding / writing / translation), then add an eval set per group.' },
+    { name: 'voxel · 3d · generative', n: 36, am: 7, span: '2025-06 ~ 2026-01', silent: 9,
+      spark: '▆▆▂·····▂···',
+      about: 'VoxelDreamer-style pipelines: one-sentence 3D asset generation, AI sculpting, and quick validation tricks.',
+      next: 'Playthroughs dominate. Add a quantitative comparison of output quality across the three tools you saved.' },
+  ],
+  persistent: [
+    { name: 'Knowledge explainers', n: 2832, am: 44, span: '2013 ~ 2026-10', silent: 0,
+      spark: '▆▆▆▅▆▆▆▅▆▅▆▆',
+      about: '', next: '' },
+    { name: 'AI dev tools', n: 1534, am: 33, span: '2024 ~ 2026-10', silent: 0,
+      spark: '▅▆▆▅▆▅▆▅▆▅▆▆',
+      about: '', next: '' },
+  ],
+  emerging: [
+    { name: 'jev-omni · ppe · yolo26n', n: 8, am: 1, span: '2026-10 ~ 2026-10', silent: 0,
+      spark: '··········▆▆' },
+  ],
+  pulse: [
+    { name: 'gpt-6 · launch · takes', n: 14, am: 1, span: '2026-09 ~ 2026-09', silent: 1,
+      spark: '·········▆···' },
+  ],
+};
+const TL = {
+  narrative:
+    '2025-01: Knowledge explainers dominate the feed — foundational reading phase.\n' +
+    '2025-04: "AI monetization in practice" appears alongside it; saving shifts from theory to case studies.\n' +
+    '2025-08: Local inference acceleration bursts in (llama.cpp tuning, quantization bake-offs) and becomes the mainline for two quarters.\n' +
+    '2026-02: AI coding tools and prompt-pattern threads rise; inference topics cool off.\n' +
+    '2026-06: AI video generation and 3D generative tools appear — a short exploration arc.\n' +
+    '2026-09: Jev-style agent ecosystems and dev-tooling take over the feed.\n\n' +
+    'Overall: the focus moved from broad reading → monetization cases → deep local-inference engineering → agentic dev tooling, with each wave reusing vocabulary from the previous one.',
+  periods: [
+    ['2025-01', 265, 'Knowledge explainers', '—'],
+    ['2025-04', 313, 'AI monetization', 'llama.cpp · MTP'],
+    ['2025-08', 481, 'Local inference acceleration', 'llama.cpp · MTP · kv-cache'],
+    ['2026-02', 382, 'AI coding tools', 'prompt · patterns'],
+    ['2026-06', 287, 'AI video generation', 'voxel · 3d'],
+    ['2026-09', 747, 'Jev application ecosystem', 'cli · terminal-ai'],
+  ],
+};
+const MAP_GROUPS = [
+  ['AI & LLM', '#4f8cff', 210, 0.28, 0.30],
+  ['Programming', '#3fb96f', 150, 0.72, 0.22],
+  ['Design', '#e5a13d', 110, 0.22, 0.72],
+  ['Business', '#e5735f', 90, 0.78, 0.68],
+  ['Science', '#b06fd8', 80, 0.50, 0.55],
+  ['Travel', '#4fc3d9', 45, 0.88, 0.45],
+  ['Long tail (never pushed)', '#8b93a3', 22, 0.50, 0.90],
+];
+
+// ---------- search results ----------
+const resultsEl = document.getElementById('results');
+for (const r of RESULTS) {
+  const div = document.createElement('div');
+  div.className = 'hit';
+  div.innerHTML = `
+    <div class="meta">
+      <span class="badges">
+        ${r.sim ? `<span class="badge">${r.sim}</span>` : ''}
+        ${r.fts ? '<span class="badge fts">keyword✓</span>' : ''}
+      </span>
+      <b>${r.who}</b><span>${r.date}</span><span class="spacer"></span>
+      <a class="src" href="#" onclick="return false">Open on X ↗</a>
+      <button class="del">Delete</button>
+    </div>
+    <div class="text${r.text.length > 160 ? ' clamp' : ''}"></div>
+    ${r.text.length > 160 ? '<button class="more">Show more</button>' : ''}
+    <div class="links">${r.links.map(l => `<a href="#" onclick="return false">${l}</a>`).join('')}</div>`;
+  div.querySelector('.text').textContent = r.text;
+  const more = div.querySelector('.more');
+  if (more) more.addEventListener('click', () => {
+    const clamped = div.querySelector('.text').classList.toggle('clamp');
+    more.textContent = clamped ? 'Show more' : 'Collapse';
+  });
+  resultsEl.appendChild(div);
+}
+
+// ---------- browse chips + intersection ----------
+function chips(boxId, items, sel) {
+  const box = document.getElementById(boxId);
+  box.innerHTML = '';
+  for (const [label, n] of items) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (sel === label ? ' on' : '');
+    b.innerHTML = `${label} <span class="n">${n}</span>`;
+    box.appendChild(b);
+  }
+}
+chips('cat-chips', CATS, 'Dev Tools');
+chips('kw-chips', KW);
+chips('llm-chips', LLM, 'AI monetization');
+document.getElementById('cat-header').innerHTML =
+  `<h3 style="margin-bottom:8px">${'Category'}「Dev Tools」 ∩ ${'LLM cluster'}「AI monetization」 — 61 items</h3>`;
+const BROWSE = [
+  { who: '@indie_hacker', date: '2026-08-02', text: 'Shipped a paywall in a weekend using an LLM-generated Stripe flow — full teardown of what worked and what I rewrote by hand.' },
+  { who: '@saas_metrics', date: '2026-06-14', text: 'MRR 0→2k in 90 days for an AI side project: distribution notes, churn postmortems, and the two automations that actually mattered.' },
+  { who: '@devtools_fan', date: '2026-05-30', text: 'Compared 6 local-first dev tools for privacy: which ones phone home, which are truly offline, and config snippets for each.' },
+];
+const br = document.getElementById('browse-results');
+for (const r of BROWSE) {
+  const div = document.createElement('div');
+  div.className = 'hit';
+  div.innerHTML = `
+    <div class="meta"><b>${r.who}</b><span>${r.date}</span><span class="spacer"></span>
+      <a class="src" href="#" onclick="return false">Open on X ↗</a>
+      <button class="del">Delete</button></div>
+    <div class="text"></div>`;
+  div.querySelector('.text').textContent = r.text;
+  br.appendChild(div);
+}
+
+// ---------- map ----------
+function drawMap(retry) {
+  const c = document.getElementById('map-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  // 尺寸兜底:隐藏视图刚显示时 clientWidth 可能为 0(headless/虚拟时间下尤甚)
+  const W = c.clientWidth || Math.round(window.innerWidth - 44);
+  const H = c.clientHeight || Math.round(window.innerHeight * 0.62);
+  const lg = document.getElementById('map-legend');
+  if (!lg.childElementCount) {  // 图例无条件填充(不依赖布局尺寸)
+    for (const [label, color] of MAP_GROUPS) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = `<i style="width:10px;height:10px;border-radius:5px;display:inline-block;background:${color}"></i> ${label}`;
+      lg.appendChild(chip);
+    }
+  }
+  if ((!W || !H) && retry !== false) {  // 布局未就绪时重试
+    return setTimeout(() => drawMap(false), 120);
+  }
+  c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  let seed = 42;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (const [label, color, n, cx, cy] of MAP_GROUPS) {
+    ctx.fillStyle = color + 'cc';
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * Math.PI * 2, r = Math.pow(rnd(), 0.6) * 0.09;
+      const x = (cx + Math.cos(a) * r) * W, y = (cy + Math.sin(a) * r * 1.3) * H;
+      ctx.fillRect(x - 1.3, y - 1.3, 2.8, 2.8);
+    }
+  }
+}
+// 初始绘制:多次重试覆盖布局延迟;切视图/窗口变化时重绘
+let mapDrawTries = 0;
+function drawMapWhenReady() {
+  const c = document.getElementById('map-canvas');
+  if (c.clientWidth || mapDrawTries++ > 20) { drawMap(false); mapDrawTries = 0; }
+  else setTimeout(drawMapWhenReady, 120);
+}
+drawMapWhenReady();
+
+// ---------- timeline ----------
+document.getElementById('tl-narrative').textContent = TL.narrative;
+const td = document.getElementById('tl-digest');
+for (const [p, n, topic, kw] of TL.periods) {
+  const div = document.createElement('div');
+  div.className = 'tl-period';
+  div.innerHTML = `<b>${p}</b>${n} items <div class="muted">topic: ${topic} · keyword: ${kw}</div>`;
+  td.appendChild(div);
+}
+
+// ---------- threads ----------
+const SEC = [
+  ['dormant', '⚠ Dormant threads', 'once active, now silent — best candidates to revisit & restart', true],
+  ['persistent', '✓ Persistent threads', 'long-running systematic interests (your knowledge assets)', false],
+  ['emerging', '🌱 Emerging', 'appeared in the last 2 months — evaluate whether to invest', false],
+  ['pulse', '⚡ Hype pulses', 'short bursts (mostly recommendation-engine hype) — skim and move on', false],
+];
+const tb = document.getElementById('threads-body');
+for (const [cls, title, sub, warn] of SEC) {
+  const list = THREADS[cls];
+  const sec = document.createElement('div');
+  sec.innerHTML = `<div class="thread-sec"><b>${title}</b>(${list.length}) <span class="muted">${sub}</span></div>`;
+  tb.appendChild(sec);
+  for (const t of list) {
+    const div = document.createElement('div');
+    div.className = 'thread-card' + (warn && cls === 'dormant' ? ' dormant' : '');
+    const stats = [
+      `${t.n} items`, `active ${t.am} months`, `${t.span}`,
+      cls === 'dormant' ? `<span class="warn">silent for ${t.silent} months</span>` : '',
+    ].filter(Boolean).join(' · ');
+    div.innerHTML = `
+      <div class="head"><b>${t.name}</b><span class="spark">${t.spark}</span></div>
+      <div class="stats">${stats}</div>
+      ${t.about ? `<div class="cardllm">
+        <div><span class="lbl">What it is</span>${t.about}</div>
+        <div><span class="lbl">Next step</span>${t.next}</div>
+      </div>` : ''}`;
+    tb.appendChild(div);
+  }
+}
+</script>
+</body>
+</html>

@@ -67,6 +67,17 @@ async function closeCurrent() {
   db = null;
 }
 
+// WAL 模式镜像直接 deserialize 会让 SQLite 去找 -wal 文件(CANTOPEN)。
+// 标准处理:把头部 write/read version 字节从 2(WAL)改为 1(legacy)。
+function deWal(bytes) {
+  if (bytes.length > 20 && bytes[18] === 2 && bytes[19] === 2) {
+    const copy = bytes.slice();
+    copy[18] = 1; copy[19] = 1;
+    return copy;
+  }
+  return bytes;
+}
+
 async function useFileDb({ bytes, name, migrate }) {
   await modPromise;
   // 先读旧库全部行(含向量),切换后原样迁入
@@ -76,11 +87,12 @@ async function useFileDb({ bytes, name, migrate }) {
   dirty = carry && carry.length ? true : false;
   db = new sqlite3.oo1.DB(':memory:', 'ct');
   if (bytes && bytes.byteLength) {
-    const p = sqlite3.wasm.allocFromTypedArray(bytes);
+    const img = deWal(bytes);
+    const p = sqlite3.wasm.allocFromTypedArray(img);
     try {
       // flags: 1=FREEONCLOSE 4=RESIZEABLE(内存库要可增长)
       const rc = sqlite3.capi.sqlite3_deserialize(db.pointer, 'main', p,
-        bytes.byteLength, bytes.byteLength, 1 | 4);
+        img.byteLength, img.byteLength, 1 | 4);
       if (rc !== 0) throw new Error('deserialize rc=' + rc);
     } catch (e) {
       sqlite3.wasm.dealloc(p);
@@ -129,10 +141,11 @@ async function importDbBytes({ bytes, importMode }) {
   // 临时内存库装载导入的 .db,读出全部书签行(含向量),按行合并/替换当前库
   await ensureDb();
   const tmp = new sqlite3.oo1.DB(':memory:', 'ct');
-  const p = sqlite3.wasm.allocFromTypedArray(bytes);
+  const img = deWal(bytes);
+  const p = sqlite3.wasm.allocFromTypedArray(img);
   try {
     const rc = sqlite3.capi.sqlite3_deserialize(tmp.pointer, 'main', p,
-      bytes.byteLength, bytes.byteLength, 1 | 4);
+      img.byteLength, img.byteLength, 1 | 4);
     if (rc !== 0) throw new Error('deserialize rc=' + rc);
   } catch (e) {
     sqlite3.wasm.dealloc(p);
@@ -145,19 +158,26 @@ async function importDbBytes({ bytes, importMode }) {
     run('DELETE FROM tweet');
   }
   let added = 0, dup = 0;
-  for (const r of rows) {
-    if (!r.tweet_id || !r.text) continue;
-    const exists = q('SELECT 1 AS x FROM tweet WHERE tweet_id=?', [r.tweet_id]);
-    if (exists.length) { dup++; continue; }
-    run(`INSERT INTO tweet(tweet_id, text, author_handle, author_name, created_at,
-       media_json, urls_json, is_retweet, is_reply, embed_text, embedding,
-       embedding_model, embedded_at, imported_at)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
-      [r.tweet_id, r.text, r.author_handle || null, r.author_name || null,
-       r.created_at || null, r.media_json || '[]', r.urls_json || '[]',
-       r.is_retweet ? 1 : 0, r.is_reply ? 1 : 0, r.embed_text || null,
-       r.embedding || null, r.embedding_model || null, r.embedded_at || null]);
-    added++;
+  run('BEGIN');  // 万级行单事务,避免逐行 fsync
+  try {
+    for (const r of rows) {
+      if (!r.tweet_id || !r.text) continue;
+      const exists = q('SELECT 1 AS x FROM tweet WHERE tweet_id=?', [r.tweet_id]);
+      if (exists.length) { dup++; continue; }
+      run(`INSERT INTO tweet(tweet_id, text, author_handle, author_name, created_at,
+         media_json, urls_json, is_retweet, is_reply, embed_text, embedding,
+         embedding_model, embedded_at, imported_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
+        [r.tweet_id, r.text, r.author_handle || null, r.author_name || null,
+         r.created_at || null, r.media_json || '[]', r.urls_json || '[]',
+         r.is_retweet ? 1 : 0, r.is_reply ? 1 : 0, r.embed_text || null,
+         r.embedding || null, r.embedding_model || null, r.embedded_at || null]);
+      added++;
+    }
+    run('COMMIT');
+  } catch (e) {
+    try { run('ROLLBACK'); } catch (e2) { /* ignore */ }
+    throw e;
   }
   return { added, dup, total: rows.length };
 }
