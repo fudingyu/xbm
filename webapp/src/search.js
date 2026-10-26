@@ -1,3 +1,4 @@
+import { QUERY_PREFIX } from './embedder.js';
 // search.js — 余弦 + 子串 → RRF 融合(与 Python search.py 同款打分)
 export async function hybridSearch(store, engine, query, k = 50) {
   const resp = await engine.computeEmbedding(QUERY_PREFIX + query, { normalize: true });

@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- OPFS 需要 COOP/COEP;静态托管(GitHub Pages)用 meta 标签等价开启(Chromium 支持)。
+       credentialless 允许跨域媒体(twitter 图片)加载且不带凭据。 -->
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin" />
+  <meta http-equiv="Cross-Origin-Embedder-Policy" content="credentialless" />
   <title>xbm — X Bookmarks, local &amp; private</title>
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
@@ -57,6 +61,24 @@
 
   <!-- Settings -->
   <section id="settingsview" hidden>
+    <h3>Database storage <span class="muted">— where your bookmarks live</span></h3>
+    <div id="storage-status" class="muted" style="margin:4px 0"></div>
+    <div class="row">
+      <button id="btn-pick-db">Choose / create local .db file</button>
+      <button id="btn-reconnect" class="ghost" hidden>Reconnect saved file</button>
+      <button id="btn-save-now" class="ghost" hidden>Save now</button>
+      <button id="btn-use-opfs" class="ghost">Use private browser storage</button>
+    </div>
+    <div class="row">
+      <label class="muted">Import existing .db:</label>
+      <input id="import-db-file" type="file" accept=".db,.sqlite,.sqlite3" />
+      <select id="import-db-mode">
+        <option value="merge" selected>merge (keep existing)</option>
+        <option value="replace">replace everything</option>
+      </select>
+      <button id="btn-import-db" class="ghost">Import</button>
+    </div>
+    <p class="muted" id="storage-hint"></p>
     <h3>Embedding model</h3>
     <div class="row">
       <select id="model-source-type">

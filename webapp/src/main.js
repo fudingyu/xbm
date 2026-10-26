@@ -4,6 +4,7 @@ import { loadEngine } from './model.js';
 import { embedPending, buildEmbedText, QUERY_PREFIX } from './embedder.js';
 import { hybridSearch } from './search.js';
 import { bookmarkletHref, COLLECT_URL, COLLECT_ORIGIN } from './collector.js';
+import { initStorage, pickNewDb, pickExistingDb, forgetHandle, pickerSupported, connectHandle } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
 let store = null;
@@ -27,6 +28,7 @@ VIEWS.forEach((v) => $('view-' + v).addEventListener('click', () => switchView(v
 (async () => {
   try {
     store = new Store();
+    window.__store = store;  // debug access
     const info = await store.call('info');
     setStatus(`${info.tweets} bookmarks, ${info.embedded} embedded (OPFS, persistent)`);
     // 自动补嵌入(有模型时);无模型则等用户加载后再跑
@@ -183,6 +185,104 @@ $('btn-test-import').addEventListener('click', async () => {
   tryEmbedLoop();
 });
 
+// ---------- storage:数据库存储位置(OPFS / 本地 .db 文件) ----------
+let saveTimer = null;
+
+async function refreshStorageUI() {
+  const info = await store.call('storageInfo');
+  const el = $('storage-status');
+  if (info.mode === 'file') {
+    el.innerHTML = `Mode: <b>local .db file</b> — ${info.fileName}`
+      + (info.dirty ? ' <span style="color:#e5a13d">● unsaved changes</span>' : ' ✓ saved');
+    $('btn-save-now').hidden = false;
+  } else {
+    el.textContent = 'Mode: private browser storage (OPFS) — persistent, invisible file, per-origin';
+    $('btn-save-now').hidden = true;
+  }
+  $('btn-reconnect').hidden = !(storageBoot && storageBoot.mode === 'reconnect-needed');
+  $('btn-pick-db').disabled = !pickerSupported;
+  $('storage-hint').textContent = pickerSupported
+    ? 'Tip: pick a .db inside a Google Drive / OneDrive synced folder and you get cloud sync for free (real Drive API may come later). Firefox/Safari: only OPFS is available.'
+    : 'This browser cannot pick local files (needs desktop Chrome/Edge) — using private browser storage.';
+  return info;
+}
+
+let storageBoot = null;
+
+async function initStorageFlow() {
+  try {
+    storageBoot = await initStorage(store);
+    if (storageBoot.mode === 'file') {
+      setStatus(`db: local file "${storageBoot.name}" connected`);
+      await autoSaveIfDirty();
+    } else if (storageBoot.mode === 'reconnect-needed') {
+      setStatus(`db: saved file "${storageBoot.name}" found — click Reconnect in Settings`);
+    }
+  } catch (e) {
+    setStatus('storage init failed — ' + e.message);
+  }
+  await refreshStorageUI();
+}
+
+async function autoSaveIfDirty() {
+  try {
+    const info = await store.call('storageInfo');
+    if (info.mode === 'file' && info.dirty) {
+      const r = await store.call('saveFile');
+      $('storage-status').innerHTML = `Mode: <b>local .db file</b> — ${info.fileName} ✓ saved (${(r.size / 1048576).toFixed(1)}MB)`;
+    }
+  } catch (e) { /* 下次再存 */ }
+}
+
+$('btn-pick-db').addEventListener('click', async () => {
+  try {
+    const r = await pickNewDb(store);
+    $('storage-status').innerHTML =
+      `Mode: <b>local .db file</b> — ${r.name}, migrated ${r.tweets} bookmarks ✓`;
+    setStatus(`db: local file "${r.name}" (${r.tweets} bookmarks)`);
+  } catch (e) {
+    if (e.name !== 'AbortError') $('storage-hint').textContent = 'pick failed: ' + e.message;
+  }
+  refreshStorageUI();
+});
+$('btn-reconnect').addEventListener('click', async () => {
+  if (!storageBoot || storageBoot.mode !== 'reconnect-needed') return;
+  try {
+    const r = await connectHandle(store, storageBoot.handle);
+    storageBoot = { mode: 'file' };
+    setStatus(`db: local file "${r.name}" reconnected`);
+    await autoSaveIfDirty();
+    refreshStorageUI();
+  } catch (e) {
+    $('storage-hint').textContent = 'reconnect failed: ' + e.message;
+  }
+});
+$('btn-save-now').addEventListener('click', () => autoSaveIfDirty());
+$('btn-use-opfs').addEventListener('click', async () => {
+  await forgetHandle(store);
+  storageBoot = { mode: 'opfs' };
+  refreshStorageUI();
+});
+$('btn-import-db').addEventListener('click', async () => {
+  const f = $('import-db-file').files[0];
+  if (!f) { $('storage-hint').textContent = 'choose a .db file first'; return; }
+  const bytes = new Uint8Array(await f.arrayBuffer());
+  try {
+    const r = await store.call('importDbBytes',
+      { bytes, importMode: $('import-db-mode').value });
+    $('storage-hint').textContent =
+      `imported: +${r.added} new / ${r.dup} dup (file had ${r.total} rows) — remember Save now if in file mode`;
+    refreshData();
+    tryEmbedLoop();
+  } catch (e) {
+    $('storage-hint').textContent = 'import failed: ' + e.message;
+  }
+});
+// 自动保存:脏状态每 30 秒 + 页面隐藏时
+setInterval(autoSaveIfDirty, 30000);
+window.addEventListener('pagehide', autoSaveIfDirty);
+await initStorageFlow();
+
 // ---------- data ----------
 async function refreshData() {
   const info = await store.call('info');
@@ -236,3 +336,6 @@ async function runBenchmark() {
 $('btn-bench').addEventListener('click', () => runBenchmark().catch((e) => {
   $('bench-out').textContent = 'benchmark failed: ' + e.message;
 }));
+
+// debug access (also used by automated tests)
+window.__app = { get engine() { return engine; }, switchView, store: () => store };

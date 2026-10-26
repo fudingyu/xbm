@@ -11,7 +11,7 @@ export default {
   base: './',
   worker: { format: 'es' },
   optimizeDeps: { exclude: ['@sqlite.org/sqlite-wasm'] },
-  build: { emptyOutDir: true, sourcemap: false, chunkSizeWarningLimit: 2000 },
+  build: { emptyOutDir: true, sourcemap: false, chunkSizeWarningLimit: 2000, target: 'es2022' },
   plugins: [
     {
       name: 'copy-litert-wasm',
