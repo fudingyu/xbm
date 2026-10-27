@@ -1,6 +1,6 @@
 # xbm — X.com 书签本地管理器
 
-[English version](README_README.md) | 中文版
+[English version](README.en.md) | 中文版
 
 解决 X 书签两大痛点:**无语义/模糊搜索**、**无法按内容分类浏览**。
 全部数据与计算留在本机:SQLite + 本地嵌入模型(embeddinggemma, LiteRT-LM,进程内 CPU/GPU)。
