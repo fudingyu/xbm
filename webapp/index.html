@@ -18,6 +18,10 @@
 
   <nav class="views">
     <button id="view-search" class="tab active">Search</button>
+    <button id="view-browse" class="tab">Browse</button>
+    <button id="view-map" class="tab">Map</button>
+    <button id="view-timeline" class="tab">Timeline</button>
+    <button id="view-threads" class="tab">Threads</button>
     <button id="view-collect" class="tab">Collect</button>
     <button id="view-data" class="tab">Data</button>
     <button id="view-settings" class="tab">Settings</button>
@@ -30,6 +34,73 @@
       <button id="go">Search</button>
     </div>
     <div id="results"><p class="muted">Load the model (Settings), collect or import bookmarks, then search.</p></div>
+  </section>
+
+  <!-- Browse(三维交集) -->
+  <section id="browseview" hidden>
+    <div class="cat-toolbar">
+      <button id="btn-classify">Assign categories</button>
+      <select id="cluster-set" title="which partition to (re)cluster">
+        <option value="keyword" selected>Keyword clusters</option>
+        <option value="llm">LLM clusters</option>
+      </select>
+      <select id="cluster-granularity" title="cluster granularity">
+        <option value="vfine">very fine</option>
+        <option value="fine">fine</option>
+        <option value="medium" selected>medium</option>
+        <option value="coarse">coarse</option>
+      </select>
+      <label class="muted"><input id="cluster-recluster" type="checkbox" checked />re-cluster</label>
+      <button id="btn-cluster">Generate clusters</button>
+      <span id="browse-note" class="muted"></span>
+    </div>
+    <h3 class="muted">Categories (zero-shot)</h3>
+    <div id="cat-chips" class="chips"></div>
+    <h3 class="muted">Keyword clusters <span id="kw-count"></span></h3>
+    <div id="kw-chips" class="chips"></div>
+    <h3 class="muted">LLM clusters <span id="llm-count"></span></h3>
+    <div id="llm-chips" class="chips"></div>
+    <p class="muted">Click chips to filter (AND intersection, click again to clear).</p>
+    <div id="browse-header"></div>
+    <div id="browse-results"></div>
+    <button id="btn-more-browse" class="ghost" hidden>Load more</button>
+  </section>
+
+  <!-- Map -->
+  <section id="mapview" hidden>
+    <div class="cat-toolbar">
+      <select id="map-color">
+        <option value="category" selected>Color: category</option>
+        <option value="kw">Color: keyword clusters</option>
+        <option value="llm">Color: LLM clusters</option>
+      </select>
+      <button id="btn-map-gen" class="ghost">Compute projection</button>
+      <span id="map-note" class="muted"></span>
+    </div>
+    <div id="map-wrap"><canvas id="map-canvas"></canvas><div id="map-tip" hidden></div></div>
+    <div id="map-legend" class="chips"></div>
+  </section>
+
+  <!-- Timeline -->
+  <section id="timelineview" hidden>
+    <div class="cat-toolbar">
+      <select id="timeline-unit"><option value="month" selected>by month</option><option value="quarter">by quarter</option></select>
+      <select id="timeline-window"><option value="all" selected>all time</option><option value="24">last 24 months</option><option value="12">last 12 months</option></select>
+      <button id="btn-timeline">Generate narrative</button>
+      <span id="timeline-note" class="muted"></span>
+    </div>
+    <div id="timeline-narrative" class="narrative"></div>
+    <details><summary class="muted">per-period stats (raw)</summary><div id="timeline-digest"></div></details>
+  </section>
+
+  <!-- Threads -->
+  <section id="threadsview" hidden>
+    <div class="cat-toolbar">
+      <span class="muted">Dormant threads = interests you once invested in and then dropped (often because the algorithm stopped feeding them). Review them regularly.</span>
+      <button id="btn-thread-cards" class="ghost">Explain with LLM</button>
+      <span id="threads-note" class="muted"></span>
+    </div>
+    <div id="threads-body"></div>
   </section>
 
   <!-- Collect -->

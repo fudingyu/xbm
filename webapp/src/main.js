@@ -1,9 +1,11 @@
 // xbm static edition — main wiring
 import { Store } from './store.js';
 import { loadEngine } from './model.js';
-import { embedPending, buildEmbedText, QUERY_PREFIX } from './embedder.js';
+import { embedPending, buildEmbedText } from './embedder.js';
 import { hybridSearch } from './search.js';
 import { bookmarkletHref, COLLECT_URL, COLLECT_ORIGIN } from './collector.js';
+import { CATEGORY_DEFS, DOC_PREFIX } from './taxonomy.js';
+import { llmConfig, nameCluster, narrative, threadCard } from './llm.js';
 import { initStorage, pickNewDb, pickExistingDb, forgetHandle, pickerSupported, connectHandle } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -14,13 +16,17 @@ let embedRunning = false;
 function setStatus(msg) { $('conn').textContent = 'db: ' + msg; }
 
 // ---------- view switching ----------
-const VIEWS = ['search', 'collect', 'data', 'settings'];
+const VIEWS = ['search', 'browse', 'map', 'timeline', 'threads', 'collect', 'data', 'settings'];
 function switchView(name) {
   for (const v of VIEWS) {
     $('view-' + v).classList.toggle('active', v === name);
     $(v + 'view').hidden = v !== name;
   }
   if (name === 'data') refreshData();
+  if (name === 'browse') loadBrowseMeta();
+  if (name === 'map') loadMapView();
+  if (name === 'timeline') loadTimeline();
+  if (name === 'threads') loadThreads();
 }
 VIEWS.forEach((v) => $('view-' + v).addEventListener('click', () => switchView(v)));
 
@@ -120,6 +126,16 @@ function renderHit(h, el) {
     more.textContent = clamped ? 'show more' : 'collapse';
   });
   el.appendChild(div);
+}
+
+// renderCards:Browse/复用渲染(字段来自 worker 行,media/urls 为 JSON 字符串)
+function renderCards(hits, el) {
+  for (const h of hits) {
+    let media = [], urls = [];
+    try { media = JSON.parse(h.media_json || '[]'); } catch { /* ignore */ }
+    try { urls = JSON.parse(h.urls_json || '[]'); } catch { /* ignore */ }
+    renderHit({ ...h, media, urls }, el);
+  }
 }
 
 async function doSearch() {
@@ -339,3 +355,378 @@ $('btn-bench').addEventListener('click', () => runBenchmark().catch((e) => {
 
 // debug access (also used by automated tests)
 window.__app = { get engine() { return engine; }, switchView, store: () => store };
+
+// ---------------- Browse(类目 × 关键词簇 × LLM 簇 三维交集) ----------------
+const filterSel = { category: null, kw: null, llm: null };
+const chipLabel = {};
+let browseOffset = 0;
+
+VIEWS.forEach((v) => {
+  const b = $('view-' + v);
+  if (b && !b.dataset.wired) { b.dataset.wired = '1'; b.addEventListener('click', () => switchView(v)); }
+});
+
+async function loadBrowseMeta() {
+  try {
+    const [cats, clusters] = await Promise.all([
+      store.call('categoryInfo'), store.call('clusterList'),
+    ]);
+    renderChipRow('cat-chips', cats.counts.map((c) => ({ key: c.name, label: c.name, n: c.n, dim: 'category' })),
+      'No categories yet — click "Assign categories".');
+    const kw = (clusters.keyword || []), llm = (clusters.llm || []);
+    $('kw-count').textContent = kw.length ? `(${kw.length})` : '';
+    $('llm-count').textContent = llm.length ? `(${llm.length})` : '';
+    renderChipRow('kw-chips', kw.slice(0, 60).map((c) => ({ key: c.cluster_id, label: c.name, n: c.size, dim: 'kw' })),
+      'Not generated — pick "Keyword clusters" and click Generate clusters.', kw.length);
+    renderChipRow('llm-chips', llm.slice(0, 60).map((c) => ({ key: c.cluster_id, label: c.name, n: c.size, dim: 'llm' })),
+      'Not generated — pick "LLM clusters" and click Generate clusters.', llm.length);
+  } catch (e) { $('browse-note').textContent = 'load failed: ' + e.message; }
+}
+
+function renderChipRow(boxId, items, emptyText, totalCount) {
+  const box = $(boxId);
+  box.innerHTML = '';
+  if (!items.length) { box.innerHTML = `<span class="muted">${emptyText}</span>`; return; }
+  for (const it of items) {
+    chipLabel[`${it.dim}:${it.key}`] = it.label;
+    const b = document.createElement('button');
+    b.className = 'chip' + (filterSel[it.dim] === it.key ? ' on' : '');
+    b.innerHTML = `${it.label} <span class="n">${it.n}</span>`;
+    b.addEventListener('click', () => {
+      filterSel[it.dim] = filterSel[it.dim] === it.key ? null : it.key;
+      loadBrowseMeta(); refreshBrowse();
+    });
+    box.appendChild(b);
+  }
+  if (totalCount && totalCount > items.length) {
+    box.insertAdjacentHTML('beforeend', `<span class="muted">… ${totalCount} total, showing top ${items.length}</span>`);
+  }
+}
+
+async function refreshBrowse() {
+  browseOffset = 0;
+  $('browse-results').innerHTML = '';
+  $('btn-more-browse').hidden = true;
+  const active = Object.values(filterSel).some((v) => v != null);
+  if (!active) { $('browse-header').innerHTML = ''; return; }
+  await loadMoreBrowse();
+}
+
+async function loadMoreBrowse() {
+  const params = new URLSearchParams({ offset: browseOffset, limit: 50 });
+  if (filterSel.category != null) params.set('category', filterSel.category);
+  if (filterSel.kw != null) params.set('kw', filterSel.kw);
+  if (filterSel.llm != null) params.set('llm', filterSel.llm);
+  const r = await store.call('browse', Object.fromEntries(params));
+  if (browseOffset === 0) {
+    const parts = [];
+    if (filterSel.category != null) parts.push(`category "${filterSel.category}"`);
+    if (filterSel.kw != null) parts.push(`kw "${chipLabel['kw:' + filterSel.kw] ?? '#' + filterSel.kw}"`);
+    if (filterSel.llm != null) parts.push(`LLM "${chipLabel['llm:' + filterSel.llm] ?? '#' + filterSel.llm}"`);
+    $('browse-header').innerHTML = `<h3>${parts.join(' ∩ ')} — ${r.total} bookmarks</h3>`;
+  }
+  renderCards(r.hits, $('browse-results'), { withScores: false, webappRows: true });
+  browseOffset += r.hits.length;
+  $('btn-more-browse').hidden = !r.has_more;
+}
+$('btn-more-browse').addEventListener('click', loadMoreBrowse);
+
+async function doClassify() {
+  const btn = $('btn-classify');
+  btn.disabled = true;
+  $('browse-note').textContent = 'Embedding category descriptions (WebGPU) + assigning…';
+  try {
+    if (!engine) throw new Error('load the model first (Settings)');
+    const resps = await engine.computeEmbeddingBatch(
+      CATEGORY_DEFS.map((d) => DOC_PREFIX + d[1]), { normalize: true });
+    const r = await store.call('assignCategories', {
+      categories: CATEGORY_DEFS.map((d, i) => ({ name: d[0], vec: Float32Array.from(resps[i].embedding) })),
+    });
+    $('browse-note').textContent = `Assigned ${r.assigned} bookmarks`;
+    loadBrowseMeta();
+  } catch (e) {
+    $('browse-note').textContent = 'failed: ' + e.message;
+  } finally { btn.disabled = false; }
+}
+$('btn-classify').addEventListener('click', doClassify);
+
+async function doCluster() {
+  const btn = $('btn-cluster');
+  btn.disabled = true;
+  const set = $('cluster-set').value;
+  const useLlm = set === 'llm';
+  try {
+    $('browse-note').textContent = `Clustering (${set}, ${$('cluster-granularity').value})… this can take a minute`;
+    const r = await store.call('runClustering', {
+      set, granularity: $('cluster-granularity').value,
+      recluster: $('cluster-recluster').checked,
+    });
+    let extra = '';
+    if (set === 'llm' && r.clusters) {
+      // LLM 命名(可选,失败留空)
+      const cfg = llmConfig();
+      const unnamed = await store.call('unnamedClusters', { set });
+      if (cfg.base && unnamed.length) {
+        let ok = 0;
+        for (const u of unnamed) {
+          const name = await nameCluster(cfg.base, cfg.model, u.texts);
+          if (name) { await store.call('setClusterName', { set, cluster_id: u.cluster_id, name }); ok++; }
+        }
+        extra = `, LLM named ${ok}/${unnamed.length}`;
+      } else if (!cfg.base) {
+        extra = ' (configure an LLM URL in Settings to auto-name clusters)';
+      }
+    }
+    $('browse-note').textContent = `Done: ${r.clusters} ${set} clusters (${r.noise} unmatched)${extra}`;
+    loadBrowseMeta();
+  } catch (e) {
+    $('browse-note').textContent = 'failed: ' + e.message;
+  } finally { btn.disabled = false; }
+}
+
+// ---------------- Map(PCA 投影散点) ----------------
+const PALETTE = ['#4f8cff','#3fb96f','#e5a13d','#e5735f','#b06fd8','#4fc3d9',
+  '#c9db4a','#ff8fab','#8d7bff','#5fd3a2','#f2a54f','#7f9cf5','#d84f7f','#63c984',
+  '#a0d8ef','#ffd166','#9be564','#f4845f','#c4bbf0','#78c6a3'];
+let mapData = null, mapT = { scale: 1, tx: 0, ty: 0 };
+
+function mapGeom() {
+  const c = $('map-canvas');
+  return { c, ctx: c.getContext('2d'), W: c.clientWidth, H: c.clientHeight };
+}
+function mapXY(p, W, H) {
+  const s = mapT.scale;
+  return [(p.x * W + mapT.tx) * s + W * (1 - s) / 2, (p.y * H + mapT.ty) * s + H * (1 - s) / 2];
+}
+function drawMap() {
+  const { c, ctx, W, H } = mapGeom();
+  const dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(W * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (!mapData || !mapData.points.length) return;
+  const gidx = Object.keys(mapData.groups || {});
+  for (const p of mapData.points) {
+    const gi = p.g == null ? -1 : gidx.indexOf(String(p.g));
+    ctx.fillStyle = p.g == null ? 'rgba(139,147,163,.30)' : PALETTE[Math.max(gi, 0) % PALETTE.length];
+    const [x, y] = mapXY(p, W, H);
+    ctx.fillRect(x - 1.3, y - 1.3, 2.8, 2.8);
+  }
+}
+async function loadMapView() {
+  try {
+    if (!mapData) {
+      const r = await store.call('mapPoints', { color: $('map-color').value });
+      if (!r.points.length) { $('map-note').textContent = 'No projection yet — click "Compute projection"'; }
+      mapData = r; mapT = { scale: 1, tx: 0, ty: 0 };
+      $('map-note').textContent = `${r.points.length} points · scroll to zoom, drag to pan, click for the original`;
+    }
+    const box = $('map-legend');
+    box.innerHTML = '';
+    Object.entries(mapData.groups || {}).slice(0, 26).forEach(([g, label], i) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = `<i style="width:10px;height:10px;border-radius:5px;display:inline-block;background:${PALETTE[i % PALETTE.length]}"></i> ${label}`;
+      box.appendChild(chip);
+    });
+    drawMap();
+  } catch (e) { $('map-note').textContent = 'map failed: ' + e.message; }
+}
+$('map-color').addEventListener('change', () => { mapData = null; if (!$('mapview').hidden) loadMapView(); });
+$('btn-map-gen').addEventListener('click', async () => {
+  const btn = $('btn-map-gen');
+  btn.disabled = true;
+  $('map-note').textContent = 'Computing PCA projection… (a few seconds)';
+  try {
+    const r = await store.call('computeMap');
+    $('map-note').textContent = `${r.points} points projected (PCA)`;
+    mapData = null;
+    loadMapView();
+  } catch (e) { $('map-note').textContent = 'failed: ' + e.message; }
+  finally { btn.disabled = false; }
+});
+(() => {
+  const c = $('map-canvas');
+  let drag = null;
+  const nearest = (mx, my) => {
+    if (!mapData) return null;
+    const { W, H } = mapGeom();
+    let best = null, bd = 100;
+    for (const p of mapData.points) {
+      const [x, y] = mapXY(p, W, H);
+      const d = (x - mx) ** 2 + (y - my) ** 2;
+      if (d < bd) { bd = d; best = p; }
+    }
+    return best;
+  };
+  const groupOf = (g) => g == null ? 'ungrouped' : (mapData?.groups[String(g)] || '#' + g);
+  c.addEventListener('mousedown', (e) => { drag = { x: e.offsetX, y: e.offsetY, tx: mapT.tx, ty: mapT.ty, moved: false }; });
+  c.addEventListener('mousemove', (e) => {
+    if (drag) {
+      const dx = e.offsetX - drag.x, dy = e.offsetY - drag.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      mapT.tx = drag.tx + dx; mapT.ty = drag.ty + dy;
+      $('map-tip').hidden = true; drawMap(); return;
+    }
+    const best = nearest(e.offsetX, e.offsetY);
+    const tip = $('map-tip');
+    if (best) {
+      tip.hidden = false; tip.style.left = (e.offsetX + 14) + 'px'; tip.style.top = (e.offsetY + 10) + 'px';
+      tip.textContent = `[${groupOf(best.g)}] ${best.t}`;
+    } else tip.hidden = true;
+  });
+  c.addEventListener('mouseleave', () => { $('map-tip').hidden = true; drag = null; });
+  c.addEventListener('mouseup', (e) => {
+    const wasDrag = drag && drag.moved; drag = null;
+    if (wasDrag) return;
+    const best = nearest(e.offsetX, e.offsetY);
+    if (best) window.open(`https://x.com/i/status/${best.id}`, '_blank');
+  });
+  c.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    mapT.scale = Math.min(30, Math.max(0.5, mapT.scale * f));
+    drawMap();
+  }, { passive: false });
+  window.addEventListener('resize', () => { if (!$('mapview').hidden) drawMap(); });
+})();
+
+// ---------------- Timeline ----------------
+async function loadTimeline() {
+  try {
+    const digest = await store.call('timelineDigest',
+      { unit: $('timeline-unit').value, window: $('timeline-window').value });
+    const key = `xbm-timeline-${$('timeline-unit').value}-${$('timeline-window').value}`;
+    renderTimeline(digest, localStorage.getItem(key));
+  } catch (e) { $('timeline-note').textContent = 'failed: ' + e.message; }
+}
+function renderTimeline(digest, narrative) {
+  const narr = $('timeline-narrative'), box = $('timeline-digest');
+  if (narrative) narr.textContent = narrative;
+  else narr.innerHTML = '<span class="muted">(no LLM narrative yet — Generate works without an LLM for stats)</span>';
+  box.innerHTML = '';
+  for (const d of digest || []) {
+    const div = document.createElement('div');
+    div.className = 'tl-period';
+    const cats = (d.cats || []).map(([k, v]) => `${k} ${v}`).join(', ');
+    const llm = (d.llm || []).map(([k, v]) => `${k} ${v}`).join(', ');
+    const kw = (d.kw || []).map(([k, v]) => `${k} ${v}`).join(', ');
+    div.innerHTML = `<b>${d.period}</b>${d.total} bookmarks`
+      + `<div class="muted">categories: ${cats || '-'}<br>topics: ${llm || '-'}<br>keywords: ${kw || '-'}</div>`
+      + (d.samples || []).map((s) => `<div class="muted">e.g. “${s}”</div>`).join('');
+    box.appendChild(div);
+  }
+}
+$('btn-timeline').addEventListener('click', async () => {
+  const btn = $('btn-timeline');
+  btn.disabled = true;
+  const unit = $('timeline-unit').value, win = $('timeline-window').value;
+  try {
+    const digest = await store.call('timelineDigest', { unit, window: win });
+    renderTimeline(digest, null);
+    const cfg = llmConfig();
+    if (!cfg.base) {
+      $('timeline-note').textContent = `${digest.length} periods (configure an LLM URL in Settings for the narrative)`;
+      return;
+    }
+    $('timeline-note').textContent = `LLM writing narrative for ${digest.length} periods… (minutes)`;
+    const lines = digest.map((d) => {
+      const s = d.llm.length ? d.llm.map(([k, v]) => `${k}${v}`).join('/')
+        : d.cats.map(([k, v]) => `${k}${v}`).join('/');
+      return `${d.period}(${d.total}) ${s}`;
+    }).join('\n');
+    const narrativeText = await narrative(cfg.base, cfg.model, lines);
+    localStorage.setItem(`xbm-timeline-${unit}-${win}`, narrativeText);
+    renderTimeline(digest, narrativeText);
+    $('timeline-note').textContent = `${digest.length} periods, narrative generated`;
+  } catch (e) {
+    $('timeline-note').textContent = 'narrative failed: ' + e.message + ' (stats remain valid)';
+  } finally { btn.disabled = false; }
+});
+$('timeline-unit').addEventListener('change', loadTimeline);
+$('timeline-window').addEventListener('change', loadTimeline);
+
+// ---------------- Threads ----------------
+const SEC_META = {
+  dormant: ['⚠ Dormant threads', 'invested, then starved — review and restart these', true],
+  persistent: ['✓ Persistent threads', 'recurring systematic interests (knowledge assets)', false],
+  emerging: ['🌱 Emerging', 'first seen recently — worth watching', false],
+  pulse: ['⚡ Pulses', 'short bursts (algorithm hot topics) — skim and move on', false],
+};
+async function loadThreads() {
+  try {
+    const threads = await store.call('threadProfilesOp');
+    const cards = JSON.parse(localStorage.getItem('xbm-thread-cards') || '{}');
+    const box = $('threads-body');
+    box.innerHTML = '';
+    for (const cls of ['dormant', 'persistent', 'emerging', 'pulse']) {
+      const list = threads[cls] || [];
+      const [title, sub, warn] = SEC_META[cls];
+      const sec = document.createElement('div');
+      sec.innerHTML = `<div class="thread-sec"><b>${title}</b> (${list.length}) <span class="muted">${sub}</span></div>`;
+      box.appendChild(sec);
+      for (const t of list.slice(0, cls === 'pulse' ? 15 : 40)) {
+        const div = document.createElement('div');
+        div.className = 'thread-card' + (cls === 'dormant' ? ' dormant' : '');
+        const card = cards[`${t.set}:${t.cluster_id}`];
+        const stats = [`${t.size} bookmarks`, `active ${t.active_months} months`,
+          `${t.first} ~ ${t.last}`,
+          cls === 'dormant' ? `<span class="warn">dormant ${t.dormancy} months</span>` : '',
+          t.recent3 ? `+${t.recent3} last 3mo` : ''].filter(Boolean).join(' · ');
+        div.innerHTML = `
+          <div class="head"><b data-set="${t.set}" data-id="${t.cluster_id}">${t.name}</b>
+            <span class="spark">${t.spark}</span></div>
+          <div class="stats">${stats}</div>
+          ${card ? `<div class="cardllm"><div><span class="lbl">What</span>${card.about || ''}</div>
+            <div><span class="lbl">Next</span>${card.next || ''}</div></div>` : ''}`;
+        div.querySelector('b').addEventListener('click', () => {
+          switchView('browse');
+          filterSel.category = null;
+          filterSel.kw = t.set === 'keyword' ? t.cluster_id : null;
+          filterSel.llm = t.set === 'llm' ? t.cluster_id : null;
+          loadBrowseMeta(); refreshBrowse();
+        });
+        box.appendChild(div);
+      }
+    }
+  } catch (e) { $('threads-note').textContent = 'failed: ' + e.message; }
+}
+$('btn-thread-cards').addEventListener('click', async () => {
+  const btn = $('btn-thread-cards');
+  btn.disabled = true;
+  try {
+    const cfg = llmConfig();
+    if (!cfg.base) throw new Error('configure an LLM URL in Settings first');
+    const threads = await store.call('threadProfilesOp');
+    const targets = threads.dormant.slice(0, 6).concat(threads.persistent.slice(0, 6));
+    const cards = JSON.parse(localStorage.getItem('xbm-thread-cards') || '{}');
+    let ok = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i];
+      $('threads-note').textContent = `writing cards ${i + 1}/${targets.length}…`;
+      const samples = await store.call('threadSamples', { set: t.set, cluster_id: t.cluster_id });
+      const prompt = `Thread "${t.name}": ${t.size} bookmarks, active ${t.active_months} months (${t.first} ~ ${t.last})`
+        + (t.class === 'dormant' ? `, dormant for ${t.dormancy} months` : '')
+        + '\nRepresentative content:\n' + samples.map((s) => '- ' + s).join('\n');
+      const card = await threadCard(cfg.base, cfg.model, prompt);
+      if (card) { cards[`${t.set}:${t.cluster_id}`] = card; ok++; }
+      localStorage.setItem('xbm-thread-cards', JSON.stringify(cards));
+    }
+    $('threads-note').textContent = `cards written ${ok}/${targets.length}`;
+    loadThreads();
+  } catch (e) {
+    $('threads-note').textContent = 'failed: ' + e.message;
+  } finally { btn.disabled = false; }
+});
+
+// JSON 导入
+$('btn-import-json').addEventListener('click', async () => {
+  const f = $('import-json-file').files[0];
+  if (!f) { $('storage-hint').textContent = 'choose a JSON backup first'; return; }
+  try {
+    const data = JSON.parse(await f.text());
+    const r = await store.call('importJsonRows', { rows: data.rows || [] });
+    $('storage-hint').textContent = `JSON imported: +${r.added} new / ${r.dup} dup`;
+    refreshData(); tryEmbedLoop();
+  } catch (e) { $('storage-hint').textContent = 'JSON import failed: ' + e.message; }
+});
