@@ -73,9 +73,9 @@ C:\MyData\Development\ZCode\xbm-github\      ← 发布仓(git main,干净无个
 | 项 | 路径 |
 |---|---|
 | 版本 A 数据库 | `C:\MyData\Development\ZCode\xbm\xbm.db`(14441 条,190MB,WAL 模式) |
-| 版本 A 模型 | `C:\Users\fdy10\Downloads\LLM\LiteRTLM\embeddinggemma-2-text-270m.litertlm`(160MB;经 `XBM_MODEL_PATH` 指定;代码默认自动发现 `./models/*.litertlm`) |
-| 版本 A 同步凭据 | `C:\Users\fdy10\.xbm\x-sync.json`(auth_token/ct0,**机密**,不在仓库) |
-| 版本 A LLM 配置 | `C:\Users\fdy10\.xbm\llm.json`(base/model/style,chat 或 systemone) |
+| 版本 A 模型 | `C:\Users\<you>\Downloads\LLM\LiteRTLM\embeddinggemma-2-text-270m.litertlm`(160MB;经 `XBM_MODEL_PATH` 指定;代码默认自动发现 `./models/*.litertlm`) |
+| 版本 A 同步凭据 | `C:\Users\<you>\.xbm\x-sync.json`(auth_token/ct0,**机密**,不在仓库) |
+| 版本 A LLM 配置 | `C:\Users\<you>\.xbm\llm.json`(base/model/style,chat 或 systemone) |
 | 版本 A twscrape 账号 | `xbm\accounts.db`(项目根,**含 cookie**,已 gitignore) |
 | 版本 B 数据库 | 浏览器 OPFS,origin `http://127.0.0.1:9999` 下 `.opfs-sahpool/xbm.sqlite3`(当前已导入真实 14441 条;换 origin/浏览器则各自独立) |
 | 版本 B 文件句柄 | IndexedDB `xbm-fs` 库 `db-file-handle` 键(File System Access handle) |
@@ -96,7 +96,7 @@ cd C:\MyData\Development\ZCode\xbm
 pip install numpy jieba litert-lm "twscrape[curl]" umap-learn hdbscan
 
 # 起服务(模型路径必须可解析:XBM_MODEL_PATH 或 ./models/*.litertlm)
-set XBM_MODEL_PATH=C:\Users\fdy10\Downloads\LLM\LiteRTLM\embeddinggemma-2-text-270m.litertlm
+set XBM_MODEL_PATH=C:\Users\<you>\Downloads\LLM\LiteRTLM\embeddinggemma-2-text-270m.litertlm
 python -m xbm serve --db xbm.db --port 8788        # → http://127.0.0.1:8788
 
 # 分离部署(静态前端托管别处连本机后端):
