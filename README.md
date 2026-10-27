@@ -333,3 +333,7 @@ docs/screenshots/     中文截图(真实数据)
 docs/screenshots-en/  英文截图(虚构演示数据)
 docs/demo.html        英文交互演示(虚构数据)
 ```
+
+## 许可
+
+MIT — 见 [LICENSE](LICENSE)。

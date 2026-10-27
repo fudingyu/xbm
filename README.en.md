@@ -143,18 +143,25 @@ stop being "saved and never opened" and become an asset that surfaces its own st
 
 ## Two editions
 
-| | Server edition (`web/`) | Static edition (`webapp/`, **experimental WIP**) |
+| | Server edition (`web/`) | Static edition (`webapp/`, **experimental**) |
 |---|---|---|
 | How it runs | `python -m xbm serve` starts a local backend | pure frontend — open the page or host it statically |
-| Data store | local SQLite (`xbm.db`) | browser OPFS (SQLite-WASM, persistent) |
+| Data store | local SQLite (`xbm.db`) | browser OPFS (SQLite-WASM, persistent) or a real `.db` file you choose |
 | Embedding | in-process litert_lm (CPU/GPU) + browser fallback | fully in-browser (WebGPU) |
-| Features | **everything**: sync/clustering/timeline/threads/map | search, embedding, collection (bookmarklet), data management |
+| Data intake | twscrape/GraphQL sync + archive import | Bookmarklet collection on x.com + `.db`/JSON import |
+| Features | **everything**: sync/archive, clustering, timeline, threads, map | search, categories, dual clustering, map (PCA), timeline, threads, collection, data management |
 | Best for | daily driver | zero-install demo, GitHub Pages hosting, collect-as-you-browse |
+
+> Since 2026-10-27 the static edition's analytics (categories / dual clustering /
+> intersection browse / PCA map / timeline / threads) are all ported and verified on a
+> 14k dataset — recommended as the **zero-install + collect-anywhere** channel; the server
+> edition stays the daily driver (faster embedding on CPU/GPU, no browser storage quota).
 
 In the static edition: open the page → load the model in Settings → install the
 bookmarklet from the Collect page to save posts while browsing x.com. Data lives in the
 browser's OPFS — exporting a backup from the Data page is advised. See
 [xbm/README.md](xbm/README.md) ("部署形态" / deployment forms).
+An English online demo with fictional data: [`docs/demo.html`](docs/demo.html).
 
 ## Prepare the model (once)
 
