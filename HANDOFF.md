@@ -321,6 +321,13 @@ x.com ──(twscrape/raw GraphQL,增量遇已知即停)──> xbm serve
   (190MB,14441 条,5.9s,向量全随行)→重载后 14441 全恢复→真实语料语义搜索 77% 命中。
 - **发布仓干净性**:两轮全文件扫描(个人 token/用户名/路径)零命中;`*.db`/cookie 库/日志
   全部 gitignore。
+- **v2 桥接端点 e2e(2026-10-28,v0.2.0)**:重启 8788 后实测——`GET /api/v2/config` 返回
+  provider=intern + key 尾 4 位;`POST /api/v2/test` → `✓ /models 正常(13 个模型)`;
+  `/api/ask` job 化 + `/api/ask/status` 轮询正常;保存闭环(POST custom → .env footer
+  幂等写入 → 恢复备份 → 重启回 intern)验证通过;webapp 静态版设置区四分支
+  (预设快填/401/Save/不可达)浏览器实测通过。
+- **发布后远程自检**:`gh release view v0.2.0` 资产就位(72.9MB),release 页 200,
+  tag 已推。
 
 ## 11. 关键 API 速查(版本 A)
 
@@ -347,7 +354,20 @@ POST /api/llm/test          LLM 连接测试 {llm_base, llm_model, llm_style}
 POST /api/llm/config        保存 LLM 配置
 GET  /model                 .litertlm 流式下载(CORS 已开)
 POST /api/sync              {backend, full, limit} 后台同步任务
+
+# ---- v2 桥接端点（2026-10-28 v0.2.0 新增；xbm-v2 目录不存在时 404）----
+GET  /api/v2/config         v2 问答 LLM 配置概览(含 api_key_tail 尾 4 位、presets)
+POST /api/v2/config         {provider, base_url, model, fallback_model} 写回 .env footer(幂等、白名单)
+POST /api/v2/test           {provider, base_url, model} 1-token 探活(表单值临时设 env、不落盘)
+POST /api/ask {q, k}        异步问答 job,立即返回 {started:true};已有人在问 → 409
+GET  /api/ask/status        {running, phase, stages[], result, error} 前端 800ms 轮询
+GET  /dashboard             xbm-v2 成果面板(data/dashboard.html 直出)
 ```
+
+**v2 端点注意事项**：
+- `/api/ask` 的 SQLite 连接由 job 线程自建(`check_same_thread=False`),HTTP 线程立刻返回;
+- `on_status` 回调跑在请求线程上,必须轻量、必须吞异常;
+- key 永远不经 `/api/v2/config`(白名单拦截),唯一来源是 `xbm-v2/APIKEY.txt`。
 
 版本 B(浏览器内,无 HTTP API):`window.__store.call(op, payload)`(调试用),
 op 见 `webapp/src/db-worker.js` HANDLERS;`window.__app` 暴露 engine/switchView。
