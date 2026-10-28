@@ -165,11 +165,21 @@
       never uploaded anywhere. File option: pick the .litertlm from your disk.</p>
     <h3>LLM server <span class="muted">(optional — cluster naming, timeline narrative, thread cards)</span></h3>
     <div class="row">
+      <select id="llm-preset" title="Quick-fill known endpoints">
+        <option value="">(presets…)</option>
+        <option value="local">llama-server (local)</option>
+        <option value="intern">端砚 Intern-InkStone</option>
+        <option value="sensenova">SenseNova 商汤</option>
+      </select>
       <input id="llm-base" type="text" style="flex:1" placeholder="http://127.0.0.1:8080/v1 (llama-server) or https://api…/v1" />
       <input id="llm-model" type="text" placeholder="model name" style="width:140px" />
+      <button id="btn-llm-test" class="ghost">Test</button>
       <button id="btn-llm-save" class="ghost">Save</button>
       <span id="llm-note" class="muted"></span>
     </div>
+    <p class="muted">OpenAI-compatible /v1 endpoints. Remote endpoints need their API key sent by
+      the server (this static build keeps no keys) — set <code>Authorization</code> via a
+      proxy, or use a local llama-server. Saved to this browser only.</p>
     <h3>Benchmark</h3>
     <button id="btn-bench" class="ghost" disabled>Run embedding benchmark (needs model)</button>
     <pre id="bench-out" class="muted"></pre>

@@ -321,6 +321,60 @@ $('btn-wipe').addEventListener('click', async () => {
 });
 
 // ---------- settings: LLM + benchmark ----------
+
+// 与服务版设置页同源的开箱预设（xbm-v2 config._PRESET_DEFAULTS）。
+// 静态版没有后端可写，配置仍是 localStorage；这里只是快填 + 测连。
+const LLM_PRESETS = {
+  local: { base: 'http://127.0.0.1:8080/v1', model: 'local' },
+  intern: { base: 'https://discovery-api.intern-ai.org.cn/v1', model: 'Atria-Dawn' },
+  sensenova: { base: 'https://token.sensenova.cn/v1', model: 'sensenova-6.8-flash-lite' },
+};
+
+$('llm-preset').addEventListener('change', () => {
+  const key = $('llm-preset').value;
+  if (!key) return;
+  const p = LLM_PRESETS[key];
+  if (!p) return;
+  $('llm-base').value = p.base;
+  $('llm-model').value = p.model;
+  $('llm-note').textContent = `prefilled ${key} — edit, Test, then Save`;
+  $('llm-preset').value = '';
+});
+
+async function testLlmEndpoint() {
+  const base = $('llm-base').value.trim();
+  const model = $('llm-model').value.trim() || 'local';
+  const note = $('llm-note');
+  if (!base) { note.textContent = 'fill in an endpoint URL first'; return; }
+  note.textContent = 'testing…';
+  const t0 = performance.now();
+  try {
+    const resp = await fetch(base.replace(/\/$/, '') + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model, max_tokens: 32, temperature: 0,
+        messages: [{ role: 'user', content: 'reply: OK' }],
+      }),
+    });
+    const ms = Math.round(performance.now() - t0);
+    if (!resp.ok) {
+      // 401/403 = 端点活着但要 key（静态版不带 key，给出可操作提示）
+      const why = (resp.status === 401 || resp.status === 403)
+        ? `HTTP ${resp.status} — endpoint alive but needs an API key (proxy it, or use a local llama-server)`
+        : `HTTP ${resp.status}`;
+      note.textContent = `✗ ${why} (${ms}ms)`;
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
+    const n = data.choices?.length ?? 0;
+    note.textContent = `✓ chat endpoint reachable (${n} choice(s), ${ms}ms) — remember Save`;
+  } catch (e) {
+    note.textContent = `✗ unreachable (${e.name || 'network'}): ${e.message || e}`;
+  }
+}
+
+$('btn-llm-test').addEventListener('click', testLlmEndpoint);
 $('btn-llm-save').addEventListener('click', () => {
   localStorage.setItem('xbm-llm-base', $('llm-base').value.trim());
   localStorage.setItem('xbm-llm-model', $('llm-model').value.trim());
