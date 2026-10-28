@@ -163,6 +163,31 @@ browser's OPFS — exporting a backup from the Data page is advised. See
 [xbm/README.md](xbm/README.md) ("部署形态" / deployment forms).
 An English online demo with fictional data: [`docs/demo.html`](docs/demo.html).
 
+### Configuring an LLM (each edition has its own settings UI)
+
+Cluster naming, timeline narratives and thread cards can call any OpenAI-compatible
+`/v1` endpoint (leave empty to fall back to automatic keyword naming). Both editions
+let you change the config from the page — **saved takes effect immediately**, no code
+edits or restarts.
+
+| | Server edition | Static edition |
+|---|---|---|
+| Entry | Web "Settings" tab | Settings → LLM server |
+| Endpoint config | provider dropdown / base_url / model / fallback | preset dropdown / base / model |
+| Test connection | "Test connection" probe | Test button (1-token probe) |
+| Stored where | server-side `.env` + `~/.xbm/llm.json` | browser localStorage |
+
+- **Presets** work out of the box: local llama-server (`http://127.0.0.1:8080/v1`),
+  Intern-InkStone (端砚), SenseNova. Selecting a preset fills base/model for you;
+  empty fields still work.
+- **Key handling** (important): in the server edition the API key is only ever read
+  from an `APIKEY.txt` file — the settings page **shows just the last 4 characters**
+  and never accepts or stores a key. The static edition is hosted on a public site and
+  **keeps no keys at all**: remote endpoints need a proxy to add `Authorization`
+  (or just use a local llama-server).
+- If the static edition's Test probe reports `HTTP 401`, the endpoint is reachable but
+  wants a key — expected behavior; proxy it as suggested.
+
 ## Prepare the model (once)
 
 Download an EmbeddingGemma `.litertlm` model file (published on HuggingFace

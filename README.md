@@ -132,6 +132,25 @@ UMAP 投影(未装 umap-learn 时自动退化为 numpy-PCA)把每本书映射到
 数据存在浏览器 OPFS,换浏览器/清缓存会丢,注意用 Data 页导出备份。详见 [xbm/README.md](xbm/README.md)。
 另可下载英文在线演示:[`docs/demo.html`](docs/demo.html)(虚构数据,需联网)。
 
+### 配置 LLM(两版各自的设置入口)
+
+聚类命名、时间脉络叙述、线索卡等功能可接任意 OpenAI 兼容 `/v1` 端点(留空则用关键词自动命名)。
+两版都能在页面里改配置,**保存即生效**,无需改代码或重启。
+
+| | 服务版 | 静态版 |
+|---|---|---|
+| 入口 | Web「设置」标签 | Settings → LLM server |
+| 端点配置 | provider 下拉 / base_url / model / fallback | 预设快填下拉 / base / model |
+| 测试连接 | 「测试连接」探活 | Test 按钮(1-token 探测) |
+| 存到哪 | 服务端 `.env` + `~/.xbm/llm.json` | 浏览器 localStorage |
+
+- **预设**开箱即用:本地 llama-server(`http://127.0.0.1:8080/v1`)、端砚 Intern-InkStone、
+  SenseNova 商汤;选预设自动填好 base/model,留空也能跑。
+- **密钥处理**(重要):服务版的 API key 只从 `APIKEY.txt` 文件读取,设置页**只显示尾 4 位**、
+  永不在页面输入或入库;静态版部署在公开站点,**本身不带 key**,远程端点需用代理补
+  `Authorization`(或直接用本地 llama-server)。
+- 静态版的 Test 探测若返回 `HTTP 401`,说明端点可达但要 key——这是预期行为,按提示走代理即可。
+
 ## 准备模型(一次)
 
 下载 EmbeddingGemma 的 `.litertlm` 模型文件(HuggingFace `litert-community` 等处发布,
